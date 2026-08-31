@@ -2,15 +2,11 @@
 
 Work out who pays who after a group trip, in the fewest possible transfers.
 
-Enter each person's net balance — positive if the group owes them, negative if they owe the group — and it returns the shortest list of payments that squares everyone up. Debts flowing both ways between two people cancel out automatically.
-
 **Live at [calculator.yeove.com](https://calculator.yeove.com)**
 
 ## How it works
 
-Balances are matched largest debtor to largest creditor, repeatedly, until everyone is at zero. That gives at most `creditors + debtors − 1` transfers, and the page tells you when the result is provably the minimum. Everything runs in integer cents, so rounding never leaves a stray penny.
-
-If your balances don't sum to zero, the header says how far off they are — usually a purchase missing a payer or a splitter.
+Balances are matched largest debtor to largest creditor, repeatedly, until everyone is at zero. That gives at most `creditors + debtors − 1` transfers, and the page tells you when the result is the minimum.
 
 ## Notes
 
