@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yeove — Trip Calculator</title>
+<meta name="description" content="Work out who pays who after a group trip, in the fewest possible transfers.">
+<meta property="og:title" content="Yeove — Trip Calculator">
+<meta property="og:description" content="Work out who pays who after a group trip, in the fewest possible transfers.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/png" href="https://yeove.com/assets/Yeove_Logo_NoPadding_Clear.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+@font-face {
+  font-family: 'Maple Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/fontsource/fonts/maple-mono@5.3.0/latin-500-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Maple Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/fontsource/fonts/maple-mono@5.3.0/latin-700-normal.woff2) format('woff2');
+}
+
+:root {
+  --sky-top:     #FCFDFE;
+  --sky-mid:     #EDF3F9;
+  --sky-bottom:  #D7E6F4;
+
+  --card:        #FFFFFF;
+  --field:       #FFFFFF;
+  --field-line:  #DCE3EC;
+  --rule:        #E3E9F0;
+
+  --ink:         #2B3648;
+  --ink-soft:    #75879A;
+  --ink-faint:   #9AA9B8;
+
+  --blue:        #1B87EA;
+  --blue-hover:  #1272E0;
+  --blue-tint:   #DCEBFB;
+  --on-blue:     #FFFFFF;
+
+  --owed:        #12A67B;
+  --owed-tint:   #DFF3EC;
+  --owes:        #EE7F2B;
+  --owes-tint:   #FCEBDD;
+  --danger:      #D6203E;
+  --danger-tint: #FBE7EA;
+
+  --shadow-card: 0 24px 54px rgba(45, 72, 110, .10), 0 4px 14px rgba(45, 72, 110, .05);
+  --shadow-pop:  0 6px 16px rgba(45, 72, 110, .12);
+
+  --size-meta:   13px;
+  --size-body:   16px;
+  --size-head:   20px;
+
+  --r-card:      40px;
+  --r-control:   10px;
+
+  --sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Maple Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sky-top:     #171A21;
+    --sky-mid:     #171A21;
+    --sky-bottom:  #1B1F28;
+
+    --card:        #22262E;
+    --field:       #2E3341;
+    --field-line:  #3D4354;
+    --rule:        #333846;
+
+    --ink:         #ECEEF3;
+    --ink-soft:    #A3ADBE;
+    --ink-faint:   #7F8898;
+
+    --blue:        #2E93F0;
+    --blue-hover:  #4AA3F5;
+    --blue-tint:   #26364A;
+
+    --owed:        #35C79C;
+    --owed-tint:   #1D3A33;
+    --owes:        #F5964F;
+    --owes-tint:   #3A2C1E;
+    --danger:      #F0576F;
+    --danger-tint: #3A222A;
+
+    --shadow-card: 0 24px 54px rgba(0, 0, 0, .40), 0 4px 14px rgba(0, 0, 0, .30);
+    --shadow-pop:  0 6px 16px rgba(0, 0, 0, .38);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+html.ready { opacity: 1; transform: none; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: clamp(1.5rem, 5vw, 3.5rem) clamp(1rem, 5vw, 2rem) 4rem;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bottom) 100%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 680px; margin: 0 auto; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 44px;
+}
+.topbar__label,
+.topbar__site {
+  font-size: var(--size-meta);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.topbar__site { text-decoration: none; }
+.topbar__site:hover { color: var(--blue); }
+.badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: var(--size-meta);
+  font-weight: 700;
+  color: var(--ink);
+  flex: none;
+}
+.topbar__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+h1 {
+  font-weight: 700;
+  font-size: clamp(2.1rem, 7vw, 3rem);
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  margin: 0 0 10px;
+}
+.lede {
+  font-weight: 500;
+  color: var(--ink-soft);
+  max-width: 46ch;
+  margin: 0 0 36px;
+}
+
+.panel {
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  margin-bottom: 28px;
+}
+
+h2 {
+  font-weight: 700;
+  font-size: var(--size-head);
+  letter-spacing: -.01em;
+  margin: 0 0 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status { display: flex; align-items: center; gap: 10px; }
+.status__face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  flex: none;
+}
+.status__text {
+  font-family: var(--mono);
+  font-size: var(--size-meta);
+  font-weight: 700;
+  color: var(--owed);
+  white-space: nowrap;
+}
+.status__text.off { color: var(--owes); }
+
+.beam { margin-bottom: 34px; }
+.beam-row {
+  display: grid;
+  grid-template-columns: minmax(66px, 96px) 1fr minmax(88px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+}
+.beam-name {
+  font-size: var(--size-meta);
+  font-weight: 700;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.beam-track { position: relative; height: 24px; }
+.beam-track::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--field-line);
+}
+.beam-fill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  transition: width .38s cubic-bezier(.22,.9,.3,1);
+}
+.beam-fill.pos { left: 50%; background: var(--owed); border-radius: 0 5px 5px 0; }
+.beam-fill.neg { right: 50%; background: var(--owes); border-radius: 5px 0 0 5px; }
+.beam-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: right;
+  color: var(--ink);
+}
+.beam-val.pos { color: var(--owed); }
+.beam-val.neg { color: var(--owes); }
+.beam-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+input {
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-control);
+  padding: 12px 15px;
+  width: 100%;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+input.amount {
+  font-family: var(--mono);
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input.amount::-webkit-outer-spin-button,
+input.amount::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input::placeholder { color: var(--ink-faint); font-weight: 500; }
+input:hover { border-color: var(--ink-faint); }
+input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-tint);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+button.btn {
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 600;
+  padding: 15px 32px;
+  border-radius: var(--r-control);
+  border: none;
+  cursor: pointer;
+  transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+}
+button.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--blue);
+  color: var(--on-blue);
+  box-shadow: 0 5px 14px rgba(27, 135, 234, .32);
+}
+.btn-primary:hover { background: var(--blue-hover); box-shadow: 0 7px 18px rgba(27, 135, 234, .38); }
+.btn-quiet {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+.btn-quiet:hover { background: var(--field-line); }
+.btn-plain {
+  background: transparent;
+  color: var(--ink-soft);
+}
+.btn-plain:hover { background: var(--rule); color: var(--ink); }
+
+.actions__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.actions__pair .btn { flex: 1 1 0; min-width: 0; }
+.actions__pair .btn[hidden] { display: none; }
+
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+.notice {
+  margin: 22px 0 0;
+  padding: 15px 18px;
+  border-radius: var(--r-control);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--size-meta);
+  font-weight: 500;
+}
+
+.transfer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.transfer:last-of-type { border-bottom: none; }
+.transfer .route { font-weight: 500; }
+.transfer .route strong { font-weight: 700; }
+.transfer .arrow { color: var(--ink-faint); margin: 0 10px; }
+.transfer .amt {
+  font-family: var(--mono);
+  font-size: var(--size-head);
+  font-weight: 700;
+  color: var(--blue);
+}
+.footnote { margin: 22px 0 0; font-size: var(--size-meta); font-weight: 500; color: var(--ink-soft); }
+.empty { margin: 0; font-weight: 500; color: var(--ink-soft); }
+
+footer {
+  margin-top: 44px;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .panel { border-radius: 28px; }
+  .row { grid-template-columns: minmax(0, 1fr) 108px; }
+  .beam-row { grid-template-columns: minmax(56px, 76px) 1fr minmax(80px, auto); gap: 10px; }
+  h2 { align-items: flex-start; flex-direction: column; gap: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html, .beam-fill, button.btn, input { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <span class="topbar__label">Split</span>
+    <span class="badge" id="count">4</span>
+    <span class="topbar__rule"></span>
+    <a class="topbar__site" href="https://yeove.com/">yeove.com</a>
+  </header>
+
+  <h1>Trip Calculator</h1>
+  <p class="lede">Enter each person's balance.<br />The page will automatically figure out the simplest way for everyone to settle up.</p>
+
+  <section class="panel">
+    <h2>
+      Balances
+      <span class="status">
+        <span class="status__face" id="face" aria-hidden="true">&#128519;</span>
+        <span class="status__text" id="status">Balanced</span>
+      </span>
+    </h2>
+
+    <div class="beam-legend"><span>Owes</span><span>Is owed</span></div>
+    <div class="beam" id="beam"></div>
+
+    <div class="labels"><span>Person</span><span>Net</span></div>
+    <div id="rows"></div>
+
+    <div class="actions">
+      <div class="actions__pair">
+        <button type="button" class="btn btn-quiet" id="add">Add person</button>
+        <button type="button" class="btn btn-plain" id="drop" hidden>Remove last person</button>
+      </div>
+      <button type="button" class="btn btn-primary" id="calc">Settle up &#8594;</button>
+    </div>
+    <p class="notice" id="error" hidden></p>
+  </section>
+
+  <section class="panel">
+    <h2>Payments</h2>
+    <div id="transfers">
+      <p class="empty">Fill in the balances above and settle up to see who sends money to who.</p>
+    </div>
+    <p class="footnote" id="footnote" hidden></p>
+    <div class="actions" id="copy-wrap" hidden>
+      <button type="button" class="btn btn-quiet" id="copy">Copy the list</button>
+    </div>
+  </section>
+
+  <footer>© Yeove 2026</footer>
+</div>
+
+<script>
+(function () {
+  var startingRows = 2;
+
+  var rows = document.getElementById('rows');
+  var beam = document.getElementById('beam');
+  var face = document.getElementById('face');
+  var status = document.getElementById('status');
+  var count = document.getElementById('count');
+  var error = document.getElementById('error');
+  var transfers = document.getElementById('transfers');
+  var footnote = document.getElementById('footnote');
+  var copyBtn = document.getElementById('copy');
+  var copyWrap = document.getElementById('copy-wrap');
+  var dropBtn = document.getElementById('drop');
+  var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+  var lastPayments = [];
+
+  // Share code: version + count + [nameLen, nameBytes, zigzag varint cents] + checksum
+  function encodeState(people) {
+    var enc = new TextEncoder();
+    var out = [1, people.length];
+    for (var i = 0; i < people.length; i++) {
+      var nb = enc.encode(people[i].name.slice(0, 40));
+      out.push(nb.length);
+      for (var j = 0; j < nb.length; j++) { out.push(nb[j]); }
+      var zz = people[i].cents < 0 ? (-people[i].cents * 2 - 1) : people[i].cents * 2;
+      while (zz > 127) { out.push((zz % 128) + 128); zz = Math.floor(zz / 128); }
+      out.push(zz);
+    }
+    var sum = 0;
+    for (var k = 0; k < out.length; k++) { sum = (sum + out[k]) & 255; }
+    out.push(sum);
+  
+    var bin = '';
+    for (var m = 0; m < out.length; m++) { bin += String.fromCharCode(out[m]); }
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  
+  function decodeState(code) {
+    try {
+      var b64 = code.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) { b64 += '='; }
+      var bin = atob(b64);
+      var bytes = [];
+      for (var i = 0; i < bin.length; i++) { bytes.push(bin.charCodeAt(i)); }
+      if (bytes.length < 4) { return null; }
+  
+      var sum = 0;
+      for (var c = 0; c < bytes.length - 1; c++) { sum = (sum + bytes[c]) & 255; }
+      if (sum !== bytes[bytes.length - 1]) { return null; }
+      if (bytes[0] !== 1) { return null; }
+  
+      var dec = new TextDecoder();
+      var count = bytes[1];
+      var p = 2;
+      var people = [];
+      for (var n = 0; n < count; n++) {
+        if (p >= bytes.length - 1) { return null; }
+        var len = bytes[p++];
+        if (p + len > bytes.length - 1) { return null; }
+        var name = dec.decode(new Uint8Array(bytes.slice(p, p + len)));
+        p += len;
+        var zz = 0, shift = 1, byte;
+        do {
+          if (p >= bytes.length - 1) { return null; }
+          byte = bytes[p++];
+          zz += (byte % 128) * shift;
+          shift *= 128;
+        } while (byte > 127);
+        var cents = (zz % 2) ? -((zz + 1) / 2) : zz / 2;
+        people.push({ name: name, cents: cents });
+      }
+      return people.length ? people : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function shareUrl(people) {
+    var base = (location.protocol === 'http:' || location.protocol === 'https:')
+      ? location.origin + location.pathname
+      : 'https://calculator.yeove.com/';
+    return base + '#' + encodeState(people);
+  }
+
+  function addRow(name, value) {
+    var row = document.createElement('div');
+    row.className = 'row';
+
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'person';
+    nameInput.placeholder = 'Name';
+    nameInput.setAttribute('aria-label', 'Person');
+    nameInput.value = name || '';
+
+    var amountInput = document.createElement('input');
+    amountInput.type = 'number';
+    amountInput.step = '0.01';
+    amountInput.className = 'amount';
+    amountInput.placeholder = '0.00';
+    amountInput.setAttribute('inputmode', 'decimal');
+    amountInput.setAttribute('aria-label', 'Net balance');
+    amountInput.value = (value === undefined || value === null) ? '' : value;
+
+    row.appendChild(nameInput);
+    row.appendChild(amountInput);
+    rows.appendChild(row);
+  }
+
+  function read() {
+    var people = [];
+    Array.prototype.forEach.call(rows.children, function (row) {
+      var name = row.querySelector('.person').value.trim();
+      var raw = row.querySelector('.amount').value.trim();
+      var value = parseFloat(raw);
+      people.push({
+        name: name,
+        raw: raw,
+        blank: name === '' && raw === '',
+        valid: name !== '' && raw !== '' && !isNaN(value),
+        cents: isNaN(value) ? 0 : Math.round(value * 100)
+      });
+    });
+    return people;
+  }
+
+  function drawBeam() {
+    var people = read();
+    var scale = 0;
+    people.forEach(function (p) { scale = Math.max(scale, Math.abs(p.cents)); });
+    if (scale === 0) { scale = 1; }
+
+    count.textContent = people.filter(function (p) { return !p.blank; }).length;
+    beam.textContent = '';
+
+    people.forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'beam-row';
+
+      var name = document.createElement('span');
+      name.className = 'beam-name';
+      name.textContent = p.name || '\u2014';
+
+      var track = document.createElement('div');
+      track.className = 'beam-track';
+      var fill = document.createElement('div');
+      fill.className = 'beam-fill ' + (p.cents < 0 ? 'neg' : 'pos');
+      fill.style.width = (Math.abs(p.cents) / scale * 50) + '%';
+      track.appendChild(fill);
+
+      var val = document.createElement('span');
+      val.className = 'beam-val ' + (p.cents > 0 ? 'pos' : p.cents < 0 ? 'neg' : '');
+      val.textContent = p.raw === '' ? '\u2014' : money.format(p.cents / 100);
+
+      row.appendChild(name);
+      row.appendChild(track);
+      row.appendChild(val);
+      beam.appendChild(row);
+    });
+
+    var drift = people.reduce(function (sum, p) { return sum + p.cents; }, 0);
+    if (Math.abs(drift) <= 25) {
+      face.textContent = '\ud83d\ude07';
+      status.textContent = 'Balanced';
+      status.className = 'status__text';
+    } else {
+      face.textContent = '\ud83d\ude25';
+      status.textContent = 'Off by ' + money.format(Math.abs(drift) / 100);
+      status.className = 'status__text off';
+    }
+  }
+
+  function showEmpty(message) {
+    transfers.textContent = '';
+    var p = document.createElement('p');
+    p.className = 'empty';
+    p.textContent = message;
+    transfers.appendChild(p);
+    footnote.hidden = true;
+    copyWrap.hidden = true;
+    lastPayments = [];
+  }
+
+  function fail(message) {
+    error.textContent = message;
+    error.hidden = false;
+    showEmpty('Fill in the balances above and settle up to see who sends money to who.');
+  }
+
+  function settle() {
+    var entered = read();
+
+    if (entered.some(function (p) { return !p.blank && !p.valid; })) {
+      return fail('Some rows have a name but no balance, or the other way round. Complete them, then settle up again.');
+    }
+
+    var people = entered.filter(function (p) { return !p.blank; });
+    if (people.length < 2) {
+      return fail('Add at least two people before settling up.');
+    }
+
+    var drift = people.reduce(function (sum, p) { return sum + p.cents; }, 0);
+    if (Math.abs(drift) > 25) {
+      return fail('These balances add up to ' + money.format(drift / 100) + ' instead of zero, so the ledger is missing something. Check that every purchase has a payer and a set of splitters.');
+    }
+    if (drift !== 0) {
+      people.slice().sort(function (a, b) { return Math.abs(b.cents) - Math.abs(a.cents); })[0].cents -= drift;
+    }
+
+    var creditors = people.filter(function (p) { return p.cents > 0; })
+      .map(function (p) { return { name: p.name, amount: p.cents }; })
+      .sort(function (a, b) { return b.amount - a.amount; });
+    var debtors = people.filter(function (p) { return p.cents < 0; })
+      .map(function (p) { return { name: p.name, amount: -p.cents }; })
+      .sort(function (a, b) { return b.amount - a.amount; });
+
+    var payments = [];
+    var i = 0, j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      var amount = Math.min(debtors[i].amount, creditors[j].amount);
+      if (amount > 0) {
+        payments.push({ from: debtors[i].name, to: creditors[j].name, amount: amount });
+      }
+      debtors[i].amount -= amount;
+      creditors[j].amount -= amount;
+      if (debtors[i].amount === 0) { i++; }
+      if (creditors[j].amount === 0) { j++; }
+    }
+
+    error.hidden = true;
+
+    if (!payments.length) {
+      return showEmpty('Everyone is square. No payments needed.');
+    }
+
+    lastPayments = payments;
+    transfers.textContent = '';
+    payments.forEach(function (payment) {
+      var line = document.createElement('div');
+      line.className = 'transfer';
+
+      var route = document.createElement('span');
+      route.className = 'route';
+      var from = document.createElement('strong');
+      from.textContent = payment.from;
+      var arrow = document.createElement('span');
+      arrow.className = 'arrow';
+      arrow.textContent = '\u2192';
+      var to = document.createElement('strong');
+      to.textContent = payment.to;
+      route.appendChild(from);
+      route.appendChild(arrow);
+      route.appendChild(to);
+
+      var amt = document.createElement('span');
+      amt.className = 'amt';
+      amt.textContent = money.format(payment.amount / 100);
+
+      line.appendChild(route);
+      line.appendChild(amt);
+      transfers.appendChild(line);
+    });
+
+    var floor = Math.max(creditors.length, debtors.length);
+    if (payments.length === floor) {
+      footnote.textContent = '';
+      footnote.hidden = true;
+    } else {
+      footnote.textContent = 'Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
+      footnote.hidden = false;
+    }
+    copyWrap.hidden = false;
+  }
+
+  var shared = decodeState((location.hash || '').replace(/^#/, ''));
+  if (shared && shared.length >= 2) {
+    shared.forEach(function (person) {
+      addRow(person.name, (person.cents / 100).toFixed(2));
+    });
+  } else {
+    shared = null;
+    for (var n = 0; n < startingRows; n++) { addRow(); }
+  }
+
+  drawBeam();
+  syncDrop();
+  if (shared) { settle(); }
+
+  function syncDrop() {
+    dropBtn.hidden = rows.children.length <= startingRows;
+  }
+
+  function dropRow(row) {
+    if (!row || rows.children.length <= startingRows) { return null; }
+    var neighbour = row.previousElementSibling || row.nextElementSibling;
+    row.remove();
+    syncDrop();
+    error.hidden = true;
+    drawBeam();
+    return neighbour;
+  }
+
+  function focusName(row) {
+    if (!row) { return; }
+    var field = row.querySelector('.person');
+    if (!field) { return; }
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+  }
+
+  document.getElementById('add').addEventListener('click', function () {
+    addRow('', '');
+    syncDrop();
+    drawBeam();
+    rows.lastChild.querySelector('.person').focus();
+  });
+
+  dropBtn.addEventListener('click', function () {
+    focusName(dropRow(rows.lastChild));
+  });
+
+  rows.addEventListener('input', function () {
+    error.hidden = true;
+    drawBeam();
+  });
+
+  rows.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      settle();
+      return;
+    }
+
+    if (event.key === 'Backspace' && event.target.classList.contains('person')) {
+      var row = event.target.parentNode;
+      var isEmpty = event.target.value === '' && row.querySelector('.amount').value === '';
+      if (isEmpty && rows.children.length > startingRows) {
+        event.preventDefault();
+        focusName(dropRow(row));
+      }
+    }
+  });
+
+  document.getElementById('calc').addEventListener('click', settle);
+
+  copyBtn.addEventListener('click', function () {
+    var lines = lastPayments.map(function (p) {
+      return p.from + ' \u2192 ' + p.to + '  ' + money.format(p.amount / 100);
+    }).join('\n');
+
+    var people = read().filter(function (p) { return !p.blank; });
+    var text = shareUrl(people) + '\n\n' + lines;
+    var done = function () {
+      copyBtn.textContent = 'Copied to clipboard';
+      setTimeout(function () { copyBtn.textContent = 'Copy the list'; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    } else {
+      var scratch = document.createElement('textarea');
+      scratch.value = text;
+      scratch.style.position = 'fixed';
+      scratch.style.opacity = '0';
+      document.body.appendChild(scratch);
+      scratch.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(scratch);
+    }
+  });
+})();
+</script>
+
+<script>
+document.documentElement.classList.add('ready');
+</script>
+</body>
+</html>
