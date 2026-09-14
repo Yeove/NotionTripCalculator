@@ -4,9 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Yeove — Notion Trip Calculator</title>
-<meta name="description" content="Work out who pays who after a group trip, in the fewest possible transfers.">
+<meta name="description" content="Name everyone on the trip, fill in what each person covered, and settle up in the fewest transfers.">
 <meta property="og:title" content="Yeove — Notion Trip Calculator">
-<meta property="og:description" content="Work out who pays who after a group trip, in the fewest possible transfers.">
+<meta property="og:description" content="Name everyone on the trip, fill in what each person covered, and settle up in the fewest transfers.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <meta name="color-scheme" content="light dark">
@@ -58,15 +58,27 @@
   --danger:      #D6203E;
   --danger-tint: #FBE7EA;
 
-  --shadow-card: 0 24px 54px rgba(45, 72, 110, .10), 0 4px 14px rgba(45, 72, 110, .05);
-  --shadow-pop:  0 6px 16px rgba(45, 72, 110, .12);
+  --row-focus:   rgba(27, 135, 234, .06);
+
+  --shadow-card:  0 24px 54px rgba(45, 72, 110, .10), 0 4px 14px rgba(45, 72, 110, .05);
+  --shadow-pop:   0 6px 16px rgba(45, 72, 110, .12);
+  --shadow-field: inset 0 1px 2px rgba(45, 72, 110, .06);
 
   --size-meta:   13px;
   --size-body:   16px;
   --size-head:   20px;
 
+  /* One escalating scale: the bigger the gap, the bigger the group it separates. */
+  --gap-item:    10px;
+  --gap-row:      6px;
+  --gap-label:   12px;
+  --gap-head:    22px;
+  --gap-group:   28px;
+  --gap-panel:   36px;
+
   --r-card:      40px;
   --r-control:   10px;
+  --r-row:       14px;
 
   --sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: 'Maple Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -74,6 +86,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    /* Greys carry a hint of the primary blue rather than being neutral. */
     --sky-top:     #171A21;
     --sky-mid:     #171A21;
     --sky-bottom:  #1B1F28;
@@ -98,8 +111,11 @@
     --danger:      #F0576F;
     --danger-tint: #3A222A;
 
-    --shadow-card: 0 24px 54px rgba(0, 0, 0, .40), 0 4px 14px rgba(0, 0, 0, .30);
-    --shadow-pop:  0 6px 16px rgba(0, 0, 0, .38);
+    --row-focus:   rgba(46, 147, 240, .10);
+
+    --shadow-card:  0 24px 54px rgba(0, 0, 0, .40), 0 4px 14px rgba(0, 0, 0, .30);
+    --shadow-pop:   0 6px 16px rgba(0, 0, 0, .38);
+    --shadow-field: inset 0 1px 2px rgba(0, 0, 0, .22);
   }
 }
 
@@ -174,7 +190,7 @@ h1 {
   font-weight: 500;
   color: var(--ink-soft);
   max-width: 46ch;
-  margin: 0 0 36px;
+  margin: 0 0 var(--gap-panel);
 }
 
 .panel {
@@ -182,14 +198,14 @@ h1 {
   border-radius: var(--r-card);
   box-shadow: var(--shadow-card);
   padding: clamp(1.5rem, 5vw, 2.5rem);
-  margin-bottom: 28px;
+  margin-bottom: var(--gap-panel);
 }
 
 h2 {
   font-weight: 700;
   font-size: var(--size-head);
   letter-spacing: -.01em;
-  margin: 0 0 26px;
+  margin: 0 0 var(--gap-head);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -214,22 +230,273 @@ h2 {
   font-family: var(--mono);
   font-size: var(--size-meta);
   font-weight: 700;
-  color: var(--owed);
+  color: var(--ink-soft);
   white-space: nowrap;
 }
-.status__text.off { color: var(--owes); }
+.status__text.live { color: var(--blue); }
 
-.beam { margin-bottom: 34px; }
+/* ---- fields ---- */
+
+input {
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-control);
+  padding: 12px 15px;
+  width: 100%;
+  box-shadow: var(--shadow-field);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* Entered data reads strongest, then the label, then the placeholder. */
+input::placeholder { color: var(--ink-faint); font-weight: 400; }
+input:hover { border-color: var(--ink-faint); }
+input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-tint);
+}
+
+/* The currency mark stays put once the placeholder is gone, so the field
+   is still labelled after it has been filled in. */
+.money {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-control);
+  padding: 0 15px;
+  box-shadow: var(--shadow-field);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.money__mark {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--ink-faint);
+  flex: none;
+}
+.money:hover { border-color: var(--ink-faint); }
+.money:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-tint);
+}
+.money.flag { border-color: var(--danger); }
+.money input,
+.money input:hover,
+.money input:focus {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: right;
+}
+
+.note {
+  margin: 4px 0 0;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--danger);
+}
+.note.note--calc { color: var(--ink-soft); }
+
+.hint {
+  margin: var(--gap-label) 0 0;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+/* ---- who is on the trip ---- */
+
+.roster-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--gap-item);
+  align-items: center;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-item);
+  margin-top: var(--gap-group);
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: var(--blue-tint);
+  color: var(--ink);
+  font-size: var(--size-body);
+  font-weight: 600;
+}
+/* A close control needs room around it, not just a tiny glyph. */
+.chip__drop {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.chip__drop:hover { background: var(--card); color: var(--danger); }
+
+/* ---- the debt grid ---- */
+
+.group { margin-bottom: var(--gap-group); }
+.group:last-child { margin-bottom: 0; }
+.group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 var(--gap-label);
+  padding: 0 10px var(--gap-label);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--size-body);
+  font-weight: 700;
+}
+.group__total {
+  font-family: var(--mono);
+  font-size: var(--size-meta);
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+.group__total.live { color: var(--owed); }
+
+.cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 136px;
+  gap: var(--gap-item);
+  align-items: center;
+  padding: var(--gap-row) 10px;
+  margin: 0 -10px;
+  border-radius: var(--r-row);
+  transition: background .15s ease;
+}
+/* Show which pair is being edited, not just which box. */
+.cell:focus-within { background: var(--row-focus); }
+.cell__name { font-weight: 600; }
+.cell .note { grid-column: 1 / -1; }
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: var(--gap-group);
+}
+
+button.btn {
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 600;
+  padding: 15px 32px;
+  border-radius: var(--r-control);
+  border: none;
+  cursor: pointer;
+  transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+}
+button.btn:active { transform: translateY(1px); }
+/* Only the primary action carries a strong colour and a shadow. */
+.btn-primary {
+  background: var(--blue);
+  color: var(--on-blue);
+  box-shadow: 0 5px 14px rgba(27, 135, 234, .32);
+}
+.btn-primary:hover { background: var(--blue-hover); box-shadow: 0 7px 18px rgba(27, 135, 234, .38); }
+.btn-quiet {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+.btn-quiet:hover { background: var(--field-line); }
+
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+.notice {
+  margin: var(--gap-head) 0 0;
+  padding: 15px 18px;
+  border-radius: var(--r-control);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--size-meta);
+  font-weight: 500;
+}
+
+/* ---- paste ---- */
+
+.paste { margin-top: var(--gap-group); }
+.paste > summary {
+  list-style: none;
+  cursor: pointer;
+  display: block;
+  padding: 14px 16px;
+  border-radius: var(--r-control);
+  border: 1px dashed var(--field-line);
+  font-size: var(--size-body);
+  font-weight: 600;
+  color: var(--blue);
+  text-align: center;
+}
+.paste > summary::-webkit-details-marker { display: none; }
+.paste > summary:hover { border-color: var(--blue); background: var(--row-focus); }
+.paste[open] > summary { border-style: solid; color: var(--ink); }
+.paste__hint {
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin: var(--gap-head) 0 var(--gap-label);
+}
+/* 16px keeps mobile browsers from zooming the page when this takes focus. */
+.paste textarea {
+  font-family: var(--mono);
+  font-size: var(--size-body);
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--field-line);
+  border-radius: var(--r-control);
+  box-shadow: var(--shadow-field);
+  padding: 14px 15px;
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+}
+.paste textarea::placeholder { color: var(--ink-faint); }
+.paste textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-tint);
+}
+.paste .actions { margin-top: var(--gap-label); }
+
+/* ---- balances ---- */
+
 .beam-row {
   display: grid;
   grid-template-columns: minmax(66px, 96px) 1fr minmax(88px, auto);
   align-items: center;
   gap: 12px;
-  padding: 7px 0;
+  padding: 7px 10px;
+  margin: 0 -10px;
 }
+/* The number is the data and the name is the label, so the number wins. */
 .beam-name {
   font-size: var(--size-meta);
-  font-weight: 700;
+  font-weight: 500;
   color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -257,146 +524,48 @@ h2 {
   font-family: var(--mono);
   font-weight: 700;
   text-align: right;
-  color: var(--ink);
+  color: var(--ink-faint);
 }
 .beam-val.pos { color: var(--owed); }
 .beam-val.neg { color: var(--owes); }
 .beam-legend {
   display: flex;
   justify-content: space-between;
+  padding: 0 10px var(--gap-label);
+  margin: 0 -10px var(--gap-label);
   font-size: var(--size-meta);
   font-weight: 500;
   color: var(--ink-soft);
   border-bottom: 1px solid var(--rule);
-  padding-bottom: 12px;
-  margin-bottom: 14px;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--size-meta);
-  font-weight: 500;
-  color: var(--ink-soft);
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 12px;
-  margin-bottom: 14px;
-}
-
-input {
-  font-family: var(--sans);
-  font-size: var(--size-body);
-  font-weight: 500;
-  color: var(--ink);
-  background: var(--field);
-  border: 1px solid var(--field-line);
-  border-radius: var(--r-control);
-  padding: 12px 15px;
-  width: 100%;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-input.amount {
-  font-family: var(--mono);
-  text-align: right;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-input.amount::-webkit-outer-spin-button,
-input.amount::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input::placeholder { color: var(--ink-faint); font-weight: 500; }
-input:hover { border-color: var(--ink-faint); }
-input:focus {
-  outline: none;
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-tint);
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  margin-top: 30px;
-}
-
-button.btn {
-  font-family: var(--sans);
-  font-size: var(--size-body);
-  font-weight: 600;
-  padding: 15px 32px;
-  border-radius: var(--r-control);
-  border: none;
-  cursor: pointer;
-  transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
-}
-button.btn:active { transform: translateY(1px); }
-.btn-primary {
-  background: var(--blue);
-  color: var(--on-blue);
-  box-shadow: 0 5px 14px rgba(27, 135, 234, .32);
-}
-.btn-primary:hover { background: var(--blue-hover); box-shadow: 0 7px 18px rgba(27, 135, 234, .38); }
-.btn-quiet {
-  background: var(--blue-tint);
-  color: var(--blue);
-}
-.btn-quiet:hover { background: var(--field-line); }
-.btn-plain {
-  background: transparent;
-  color: var(--ink-soft);
-}
-.btn-plain:hover { background: var(--rule); color: var(--ink); }
-
-.actions__pair {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.actions__pair .btn { flex: 1 1 0; min-width: 0; }
-.actions__pair .btn[hidden] { display: none; }
-
-:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
-
-.notice {
-  margin: 22px 0 0;
-  padding: 15px 18px;
-  border-radius: var(--r-control);
-  background: var(--danger-tint);
-  color: var(--danger);
-  font-size: var(--size-meta);
-  font-weight: 500;
-}
+/* ---- payments ---- */
 
 .transfer {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 8px 16px;
-  padding: 17px 0;
+  padding: 17px 10px;
+  margin: 0 -10px;
   border-bottom: 1px solid var(--rule);
 }
 .transfer:last-of-type { border-bottom: none; }
 .transfer .route { font-weight: 500; }
 .transfer .route strong { font-weight: 700; }
-.transfer .arrow { color: var(--ink-faint); margin: 0 10px; }
+.transfer .verb { color: var(--ink-faint); margin: 0 8px; }
 .transfer .amt {
   font-family: var(--mono);
   font-size: var(--size-head);
   font-weight: 700;
+  text-align: right;
   color: var(--blue);
 }
-.footnote { margin: 22px 0 0; font-size: var(--size-meta); font-weight: 500; color: var(--ink-soft); }
+.footnote { margin: var(--gap-head) 0 0; font-size: var(--size-meta); font-weight: 500; color: var(--ink-soft); }
+
+/* An empty panel names what is missing and what to do about it. */
 .empty { margin: 0; font-weight: 500; color: var(--ink-soft); }
+.empty strong { display: block; font-weight: 700; color: var(--ink); }
 
 footer {
   margin-top: 44px;
@@ -408,13 +577,14 @@ footer {
 
 @media (max-width: 560px) {
   .panel { border-radius: 28px; }
-  .row { grid-template-columns: minmax(0, 1fr) 108px; }
+  .roster-add { grid-template-columns: minmax(0, 1fr); }
+  .cell { grid-template-columns: minmax(0, 1fr) 120px; }
   .beam-row { grid-template-columns: minmax(56px, 76px) 1fr minmax(80px, auto); gap: 10px; }
   h2 { align-items: flex-start; flex-direction: column; gap: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html, .beam-fill, button.btn, input { transition: none; }
+  html, .beam-fill, button.btn, input, .cell { transition: none; }
 }
 </style>
 </head>
@@ -423,43 +593,68 @@ footer {
 
   <header class="topbar">
     <span class="topbar__label">Split</span>
-    <span class="badge" id="count">4</span>
+    <span class="badge" id="count">0</span>
     <span class="topbar__rule"></span>
     <a class="topbar__site" href="https://yeove.com/">yeove.com</a>
   </header>
 
   <h1>Notion Trip Calculator</h1>
-  <p class="lede">• Enter each person's net balance.<br />• The page will automatically figure out the simplest way for everyone to settle up.</p>
+  <p class="lede">• Name everyone on the trip.<br />• Fill in what each person covered for the others.<br />• Settle up cancels the loops and returns the fewest transfers.</p>
+
+  <section class="panel">
+    <h2>Who's on the trip</h2>
+
+    <div class="roster-add">
+      <input type="text" id="who" placeholder="Name" aria-label="Name" autocomplete="off" />
+      <button type="button" class="btn btn-quiet" id="add">Add person</button>
+    </div>
+    <p class="hint">Press Enter to add. Several at once works too — separate them with commas.</p>
+
+    <div class="chips" id="people"></div>
+    <p class="notice" id="roster-error" hidden></p>
+  </section>
 
   <section class="panel">
     <h2>
-      Balances
+      Who owes who
       <span class="status">
-        <span class="status__face" id="face" aria-hidden="true">&#128519;</span>
-        <span class="status__text" id="status">Balanced</span>
+        <span class="status__face" id="face" aria-hidden="true">&#128522;</span>
+        <span class="status__text" id="status">Nothing yet</span>
       </span>
     </h2>
 
-    <div class="beam-legend"><span>Owes</span><span>Is owed</span></div>
-    <div class="beam" id="beam"></div>
-
-    <div class="labels"><span>Person</span><span>Net</span></div>
-    <div id="rows"></div>
+    <div id="grid">
+      <p class="empty"><strong>No one on the trip yet</strong>Add at least two people above and every way they can owe each other shows up here.</p>
+    </div>
 
     <div class="actions">
-      <div class="actions__pair">
-        <button type="button" class="btn btn-quiet" id="add">Add person</button>
-        <button type="button" class="btn btn-plain" id="drop" hidden>Remove last person</button>
-      </div>
       <button type="button" class="btn btn-primary" id="calc">Settle up &#8594;</button>
     </div>
+
+    <details class="paste">
+      <summary>Paste a list instead</summary>
+      <p class="paste__hint">One debt per line: who paid, who owes them, then the amount. Names not on the trip yet get added, and repeated pairs are added together. Commas, tabs, &gt; and &#8594; all work as separators.</p>
+      <textarea id="bulk" spellcheck="false" aria-label="Paste debt lines" placeholder="Sam &gt; Bill = 24.50&#10;Sam &gt; Michael = 24.50&#10;Bill, Sam, 12&#10;Jeff&#9;Bill&#9;8.75"></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-quiet" id="bulk-add">Add these amounts</button>
+      </div>
+    </details>
+
     <p class="notice" id="error" hidden></p>
+  </section>
+
+  <section class="panel">
+    <h2>Balances</h2>
+    <div class="beam-legend"><span>Owes</span><span>Is owed</span></div>
+    <div id="beam">
+      <p class="empty"><strong>No balances yet</strong>Fill in an amount above and each person's net position appears here as you type.</p>
+    </div>
   </section>
 
   <section class="panel">
     <h2>Payments</h2>
     <div id="transfers">
-      <p class="empty">Fill in the balances above and settle up to see who sends money to who.</p>
+      <p class="empty"><strong>Nothing to settle yet</strong>Fill in the amounts above, then press Settle up to see who sends money to who.</p>
     </div>
     <p class="footnote" id="footnote" hidden></p>
     <div class="actions" id="copy-wrap" hidden>
@@ -472,219 +667,53 @@ footer {
 
 <script>
 (function () {
-  var startingRows = 2;
+  var maxPeople = 12;
 
-  var rows = document.getElementById('rows');
+  var who = document.getElementById('who');
+  var people = document.getElementById('people');
+  var grid = document.getElementById('grid');
   var beam = document.getElementById('beam');
   var face = document.getElementById('face');
   var status = document.getElementById('status');
   var count = document.getElementById('count');
+  var rosterError = document.getElementById('roster-error');
   var error = document.getElementById('error');
   var transfers = document.getElementById('transfers');
   var footnote = document.getElementById('footnote');
   var copyBtn = document.getElementById('copy');
   var copyWrap = document.getElementById('copy-wrap');
-  var dropBtn = document.getElementById('drop');
+  var bulk = document.getElementById('bulk');
   var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+  var roster = [];   // [{ name: 'Sam', key: 'sam' }] — fixed once the grid is built
+  var cells = {};    // 'payerKey|owerKey' -> whatever was typed in that box
   var lastPayments = [];
 
-  // Share code: version + count + [nameLen, nameBytes, zigzag varint cents] + checksum
-  function encodeState(people) {
-    var enc = new TextEncoder();
-    var out = [1, people.length];
-    for (var i = 0; i < people.length; i++) {
-      var nb = enc.encode(people[i].name.slice(0, 40));
-      out.push(nb.length);
-      for (var j = 0; j < nb.length; j++) { out.push(nb[j]); }
-      var zz = people[i].cents < 0 ? (-people[i].cents * 2 - 1) : people[i].cents * 2;
-      while (zz > 127) { out.push((zz % 128) + 128); zz = Math.floor(zz / 128); }
-      out.push(zz);
+  /* ---------- pure logic ---------- */
+
+  function key(name) { return name.trim().toLowerCase().replace(/\s+/g, ' '); }
+
+  // Roll a list of {paid, owes, cents} debts into one net position per person.
+  function ledger(lines) {
+    var seen = {}, order = [];
+    function touch(name) {
+      var k = key(name);
+      if (!seen[k]) { seen[k] = { name: name.trim(), cents: 0 }; order.push(k); }
+      return seen[k];
     }
-    var sum = 0;
-    for (var k = 0; k < out.length; k++) { sum = (sum + out[k]) & 255; }
-    out.push(sum);
-  
-    var bin = '';
-    for (var m = 0; m < out.length; m++) { bin += String.fromCharCode(out[m]); }
-    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-  
-  function decodeState(code) {
-    try {
-      var b64 = code.replace(/-/g, '+').replace(/_/g, '/');
-      while (b64.length % 4) { b64 += '='; }
-      var bin = atob(b64);
-      var bytes = [];
-      for (var i = 0; i < bin.length; i++) { bytes.push(bin.charCodeAt(i)); }
-      if (bytes.length < 4) { return null; }
-  
-      var sum = 0;
-      for (var c = 0; c < bytes.length - 1; c++) { sum = (sum + bytes[c]) & 255; }
-      if (sum !== bytes[bytes.length - 1]) { return null; }
-      if (bytes[0] !== 1) { return null; }
-  
-      var dec = new TextDecoder();
-      var count = bytes[1];
-      var p = 2;
-      var people = [];
-      for (var n = 0; n < count; n++) {
-        if (p >= bytes.length - 1) { return null; }
-        var len = bytes[p++];
-        if (p + len > bytes.length - 1) { return null; }
-        var name = dec.decode(new Uint8Array(bytes.slice(p, p + len)));
-        p += len;
-        var zz = 0, shift = 1, byte;
-        do {
-          if (p >= bytes.length - 1) { return null; }
-          byte = bytes[p++];
-          zz += (byte % 128) * shift;
-          shift *= 128;
-        } while (byte > 127);
-        var cents = (zz % 2) ? -((zz + 1) / 2) : zz / 2;
-        people.push({ name: name, cents: cents });
-      }
-      return people.length ? people : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function shareUrl(people) {
-    var base = (location.protocol === 'http:' || location.protocol === 'https:')
-      ? location.origin + location.pathname
-      : 'https://calculator.yeove.com/';
-    return base + '#' + encodeState(people);
-  }
-
-  function addRow(name, value) {
-    var row = document.createElement('div');
-    row.className = 'row';
-
-    var nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.className = 'person';
-    nameInput.placeholder = 'Name';
-    nameInput.setAttribute('aria-label', 'Person');
-    nameInput.value = name || '';
-
-    var amountInput = document.createElement('input');
-    amountInput.type = 'number';
-    amountInput.step = '0.01';
-    amountInput.className = 'amount';
-    amountInput.placeholder = '0.00';
-    amountInput.setAttribute('inputmode', 'decimal');
-    amountInput.setAttribute('aria-label', 'Net balance');
-    amountInput.value = (value === undefined || value === null) ? '' : value;
-
-    row.appendChild(nameInput);
-    row.appendChild(amountInput);
-    rows.appendChild(row);
-  }
-
-  function read() {
-    var people = [];
-    Array.prototype.forEach.call(rows.children, function (row) {
-      var name = row.querySelector('.person').value.trim();
-      var raw = row.querySelector('.amount').value.trim();
-      var value = parseFloat(raw);
-      people.push({
-        name: name,
-        raw: raw,
-        blank: name === '' && raw === '',
-        valid: name !== '' && raw !== '' && !isNaN(value),
-        cents: isNaN(value) ? 0 : Math.round(value * 100)
-      });
+    lines.forEach(function (line) {
+      touch(line.paid).cents += line.cents;
+      touch(line.owes).cents -= line.cents;
     });
-    return people;
+    return order.map(function (k) { return seen[k]; });
   }
 
-  function drawBeam() {
-    var people = read();
-    var scale = 0;
-    people.forEach(function (p) { scale = Math.max(scale, Math.abs(p.cents)); });
-    if (scale === 0) { scale = 1; }
-
-    count.textContent = people.filter(function (p) { return !p.blank; }).length;
-    beam.textContent = '';
-
-    people.forEach(function (p) {
-      var row = document.createElement('div');
-      row.className = 'beam-row';
-
-      var name = document.createElement('span');
-      name.className = 'beam-name';
-      name.textContent = p.name || '\u2014';
-
-      var track = document.createElement('div');
-      track.className = 'beam-track';
-      var fill = document.createElement('div');
-      fill.className = 'beam-fill ' + (p.cents < 0 ? 'neg' : 'pos');
-      fill.style.width = (Math.abs(p.cents) / scale * 50) + '%';
-      track.appendChild(fill);
-
-      var val = document.createElement('span');
-      val.className = 'beam-val ' + (p.cents > 0 ? 'pos' : p.cents < 0 ? 'neg' : '');
-      val.textContent = p.raw === '' ? '\u2014' : money.format(p.cents / 100);
-
-      row.appendChild(name);
-      row.appendChild(track);
-      row.appendChild(val);
-      beam.appendChild(row);
-    });
-
-    var drift = people.reduce(function (sum, p) { return sum + p.cents; }, 0);
-    if (Math.abs(drift) <= 25) {
-      face.textContent = '\ud83d\ude07';
-      status.textContent = 'Balanced';
-      status.className = 'status__text';
-    } else {
-      face.textContent = '\ud83d\ude25';
-      status.textContent = 'Off by ' + money.format(Math.abs(drift) / 100);
-      status.className = 'status__text off';
-    }
-  }
-
-  function showEmpty(message) {
-    transfers.textContent = '';
-    var p = document.createElement('p');
-    p.className = 'empty';
-    p.textContent = message;
-    transfers.appendChild(p);
-    footnote.hidden = true;
-    copyWrap.hidden = true;
-    lastPayments = [];
-  }
-
-  function fail(message) {
-    error.textContent = message;
-    error.hidden = false;
-    showEmpty('Fill in the balances above and settle up to see who sends money to who.');
-  }
-
-  function settle() {
-    var entered = read();
-
-    if (entered.some(function (p) { return !p.blank && !p.valid; })) {
-      return fail('Some rows have a name but no balance, or the other way round. Complete them, then settle up again.');
-    }
-
-    var people = entered.filter(function (p) { return !p.blank; });
-    if (people.length < 2) {
-      return fail('Add at least two people before settling up.');
-    }
-
-    var drift = people.reduce(function (sum, p) { return sum + p.cents; }, 0);
-    if (Math.abs(drift) > 25) {
-      return fail('These balances add up to ' + money.format(drift / 100) + ' instead of zero, so the ledger is missing something. Check that every purchase has a payer and a set of splitters.');
-    }
-    if (drift !== 0) {
-      people.slice().sort(function (a, b) { return Math.abs(b.cents) - Math.abs(a.cents); })[0].cents -= drift;
-    }
-
-    var creditors = people.filter(function (p) { return p.cents > 0; })
+  // Greedy largest-debtor-to-largest-creditor. Nets sum to zero by construction.
+  function minTransfers(nets) {
+    var creditors = nets.filter(function (p) { return p.cents > 0; })
       .map(function (p) { return { name: p.name, amount: p.cents }; })
       .sort(function (a, b) { return b.amount - a.amount; });
-    var debtors = people.filter(function (p) { return p.cents < 0; })
+    var debtors = nets.filter(function (p) { return p.cents < 0; })
       .map(function (p) { return { name: p.name, amount: -p.cents }; })
       .sort(function (a, b) { return b.amount - a.amount; });
 
@@ -700,11 +729,473 @@ footer {
       if (debtors[i].amount === 0) { i++; }
       if (creditors[j].amount === 0) { j++; }
     }
+    return { payments: payments, floor: Math.max(creditors.length, debtors.length) };
+  }
+
+  // A box accepts a plain amount or a running total: 20 + 15 + 3.50
+  function parseAmount(raw) {
+    var text = String(raw === undefined || raw === null ? '' : raw).replace(/[$\s,]/g, '');
+    if (text === '') { return { ok: true, cents: 0, parts: 0, negative: false }; }
+
+    var parts = text.split('+');
+    var total = 0, ok = true, negative = false;
+    parts.forEach(function (part) {
+      if (part === '') { ok = false; return; }
+      var value = Number(part);
+      if (!isFinite(value)) { ok = false; return; }
+      if (value < 0) { negative = true; }
+      total += Math.round(value * 100);
+    });
+    return { ok: ok, cents: total, parts: parts.length, negative: negative };
+  }
+
+  /* ---------- share code ----------
+     [2, varint nameCount, (len, utf8 bytes)*, varint cellCount,
+      (varint payerIdx, varint owerIdx, varint cents)*, checksum]
+     The name table is the whole roster, so people who neither paid nor owe
+     anything still survive the round trip. Older v1 links still open.     */
+
+  function putVarint(out, n) {
+    while (n > 127) { out.push((n % 128) + 128); n = Math.floor(n / 128); }
+    out.push(n);
+  }
+
+  function encodeState(lines, roll) {
+    var enc = new TextEncoder();
+    var index = {}, names = [];
+    function remember(name) {
+      var k = key(name);
+      if (!(k in index)) { index[k] = names.length; names.push(name.trim().slice(0, 40)); }
+    }
+    (roll || []).forEach(function (person) { remember(person.name); });
+    lines.forEach(function (line) { remember(line.paid); remember(line.owes); });
+
+    var out = [2];
+    putVarint(out, names.length);
+    names.forEach(function (name) {
+      var nb = enc.encode(name);
+      out.push(nb.length);
+      for (var j = 0; j < nb.length; j++) { out.push(nb[j]); }
+    });
+    putVarint(out, lines.length);
+    lines.forEach(function (line) {
+      putVarint(out, index[key(line.paid)]);
+      putVarint(out, index[key(line.owes)]);
+      putVarint(out, line.cents);
+    });
+
+    var sum = 0;
+    for (var k = 0; k < out.length; k++) { sum = (sum + out[k]) & 255; }
+    out.push(sum);
+
+    var bin = '';
+    for (var m = 0; m < out.length; m++) { bin += String.fromCharCode(out[m]); }
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decodeState(code) {
+    try {
+      var b64 = code.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) { b64 += '='; }
+      var bin = atob(b64);
+      var bytes = [];
+      for (var i = 0; i < bin.length; i++) { bytes.push(bin.charCodeAt(i)); }
+      if (bytes.length < 4) { return null; }
+
+      var sum = 0;
+      for (var c = 0; c < bytes.length - 1; c++) { sum = (sum + bytes[c]) & 255; }
+      if (sum !== bytes[bytes.length - 1]) { return null; }
+
+      var end = bytes.length - 1;
+      var dec = new TextDecoder();
+      var p = 1;
+
+      function varint() {
+        var value = 0, shift = 1, byte;
+        do {
+          if (p >= end) { throw new Error('short'); }
+          byte = bytes[p++];
+          value += (byte % 128) * shift;
+          shift *= 128;
+        } while (byte > 127);
+        return value;
+      }
+      function text() {
+        if (p >= end) { throw new Error('short'); }
+        var len = bytes[p++];
+        if (p + len > end) { throw new Error('short'); }
+        var out = dec.decode(new Uint8Array(bytes.slice(p, p + len)));
+        p += len;
+        return out;
+      }
+
+      if (bytes[0] === 1) {
+        var nets = [];
+        var howMany = bytes[p++];
+        for (var n = 0; n < howMany; n++) {
+          var who = text();
+          var zz = varint();
+          nets.push({ name: who, cents: (zz % 2) ? -((zz + 1) / 2) : zz / 2 });
+        }
+        return {
+          names: nets.map(function (person) { return person.name; }),
+          lines: minTransfers(nets).payments.map(function (pay) {
+            return { paid: pay.to, owes: pay.from, cents: pay.amount };
+          })
+        };
+      }
+
+      if (bytes[0] !== 2) { return null; }
+
+      var names = [];
+      var nameCount = varint();
+      for (var a = 0; a < nameCount; a++) { names.push(text()); }
+
+      var lines = [];
+      var lineCount = varint();
+      for (var b = 0; b < lineCount; b++) {
+        var from = varint(), to = varint(), cents = varint();
+        if (!names[from] || !names[to]) { return null; }
+        lines.push({ paid: names[from], owes: names[to], cents: cents });
+      }
+      return names.length ? { names: names, lines: lines } : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function shareUrl() {
+    var base = (location.protocol === 'http:' || location.protocol === 'https:')
+      ? location.origin + location.pathname
+      : 'https://calculator.yeove.com/';
+    return base + '#' + encodeState(debts(), roster);
+  }
+
+  /* ---------- the roster ---------- */
+
+  function pairKey(payer, ower) { return payer + '|' + ower; }
+
+  function addPeople(text) {
+    var added = 0, repeats = [], full = false;
+
+    text.split(/[,;\n\t]+/).forEach(function (chunk) {
+      var name = chunk.trim().replace(/\|/g, '').replace(/\s+/g, ' ').slice(0, 40);
+      if (!name) { return; }
+      if (roster.length >= maxPeople) { full = true; return; }
+
+      var k = key(name);
+      var already = roster.some(function (person) { return person.key === k; });
+      if (already) { repeats.push(name); return; }
+
+      roster.push({ name: name, key: k });
+      added++;
+    });
+
+    if (full) {
+      say(rosterError, 'The grid tops out at ' + maxPeople + ' people. Beyond that it is more boxes than anyone wants to fill in.');
+    } else if (repeats.length) {
+      say(rosterError, repeats.join(' and ') + (repeats.length === 1 ? ' is' : ' are') + ' already on the trip.');
+    } else {
+      rosterError.hidden = true;
+    }
+
+    if (added) { rebuild(); }
+    return added;
+  }
+
+  function dropPerson(k) {
+    roster = roster.filter(function (person) { return person.key !== k; });
+    Object.keys(cells).forEach(function (pair) {
+      var ends = pair.split('|');
+      if (ends[0] === k || ends[1] === k) { delete cells[pair]; }
+    });
+    rosterError.hidden = true;
+    rebuild();
+  }
+
+  function drawChips() {
+    people.textContent = '';
+    roster.forEach(function (person) {
+      var chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.appendChild(document.createTextNode(person.name));
+
+      var drop = document.createElement('button');
+      drop.type = 'button';
+      drop.className = 'chip__drop';
+      drop.dataset.person = person.key;
+      drop.setAttribute('aria-label', 'Remove ' + person.name + ' from the trip');
+      drop.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">' +
+        '<path d="M3 3l6 6M9 3l-6 6" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+        'stroke-linecap="round"/></svg>';
+
+      chip.appendChild(drop);
+      people.appendChild(chip);
+    });
+    count.textContent = roster.length;
+  }
+
+  /* ---------- the debt grid ---------- */
+
+  function cellRow(payer, ower) {
+    var row = document.createElement('div');
+    row.className = 'cell';
+
+    var name = document.createElement('span');
+    name.className = 'cell__name';
+    name.textContent = ower.name;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'money';
+    var mark = document.createElement('span');
+    mark.className = 'money__mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '$';
+
+    var field = document.createElement('input');
+    field.type = 'text';
+    field.className = 'amount';
+    field.placeholder = '0.00';
+    field.setAttribute('inputmode', 'decimal');
+    field.setAttribute('autocomplete', 'off');
+    field.setAttribute('aria-label', ower.name + ' owes ' + payer.name);
+    field.dataset.pair = pairKey(payer.key, ower.key);
+    field.value = cells[field.dataset.pair] || '';
+
+    wrap.appendChild(mark);
+    wrap.appendChild(field);
+
+    var note = document.createElement('p');
+    note.className = 'note';
+    note.hidden = true;
+
+    row.appendChild(name);
+    row.appendChild(wrap);
+    row.appendChild(note);
+    return row;
+  }
+
+  function buildGrid() {
+    grid.textContent = '';
+
+    if (roster.length < 2) {
+      grid.appendChild(emptyBlock('No one on the trip yet',
+        'Add at least two people above and every way they can owe each other shows up here.'));
+      return;
+    }
+
+    roster.forEach(function (payer) {
+      var group = document.createElement('section');
+      group.className = 'group';
+      group.dataset.payer = payer.key;
+
+      var head = document.createElement('h3');
+      head.className = 'group__head';
+      var label = document.createElement('span');
+      label.textContent = payer.name + ' paid for';
+      var total = document.createElement('span');
+      total.className = 'group__total';
+      head.appendChild(label);
+      head.appendChild(total);
+      group.appendChild(head);
+
+      roster.forEach(function (ower) {
+        if (ower.key === payer.key) { return; }
+        group.appendChild(cellRow(payer, ower));
+      });
+
+      grid.appendChild(group);
+    });
+  }
+
+  function noteCell(row, message, bad) {
+    var note = row.querySelector('.note');
+    note.textContent = message || '';
+    note.hidden = !message;
+    note.classList.toggle('note--calc', !!message && !bad);
+    row.querySelector('.money').classList.toggle('flag', !!bad);
+  }
+
+  function checkCell(row, settled) {
+    var amount = parseAmount(row.querySelector('.amount').value);
+    var bad = !amount.ok || amount.negative;
+
+    // Mid-typing, "8+" is a half-finished sum, not a mistake worth shouting about.
+    if (bad && !settled) { noteCell(row, null, false); return false; }
+
+    if (!amount.ok) {
+      noteCell(row, 'Numbers only, like 12.50 or 8+4.50.', true);
+      return false;
+    }
+    if (amount.negative) {
+      noteCell(row, 'Amounts have to be positive. Put it in the opposite box to flip who owes who.', true);
+      return false;
+    }
+    noteCell(row, amount.parts > 1 ? '= ' + money.format(amount.cents / 100) : null, false);
+    return true;
+  }
+
+  // Every filled box, as a directed debt.
+  function debts() {
+    var out = [];
+    roster.forEach(function (payer) {
+      roster.forEach(function (ower) {
+        if (ower.key === payer.key) { return; }
+        var amount = parseAmount(cells[pairKey(payer.key, ower.key)]);
+        if (amount.ok && !amount.negative && amount.cents > 0) {
+          out.push({ paid: payer.name, owes: ower.name, cents: amount.cents });
+        }
+      });
+    });
+    return out;
+  }
+
+  // Nets for everyone on the trip, including anyone sitting at zero.
+  function nets() {
+    var map = {};
+    roster.forEach(function (person) { map[person.key] = { name: person.name, cents: 0 }; });
+    ledger(debts()).forEach(function (person) {
+      var slot = map[key(person.name)];
+      if (slot) { slot.cents = person.cents; }
+    });
+    return roster.map(function (person) { return map[person.key]; });
+  }
+
+  /* ---------- live view ---------- */
+
+  function emptyBlock(lead, detail) {
+    var p = document.createElement('p');
+    p.className = 'empty';
+    var strong = document.createElement('strong');
+    strong.textContent = lead;
+    p.appendChild(strong);
+    p.appendChild(document.createTextNode(detail));
+    return p;
+  }
+
+  function refresh() {
+    var lines = debts();
+    var pooled = lines.reduce(function (sum, line) { return sum + line.cents; }, 0);
+
+    if (!lines.length) {
+      face.textContent = '\ud83d\ude0a';
+      status.textContent = roster.length < 2 ? 'Nothing yet' : 'No amounts yet';
+      status.className = 'status__text';
+    } else {
+      face.textContent = '\ud83e\uddfe';
+      status.textContent = money.format(pooled / 100) + ' across ' + lines.length +
+        (lines.length === 1 ? ' debt' : ' debts');
+      status.className = 'status__text live';
+    }
+
+    // Per-payer totals, so each block says what that person is owed.
+    Array.prototype.forEach.call(grid.querySelectorAll('.group'), function (group) {
+      var sum = 0;
+      Array.prototype.forEach.call(group.querySelectorAll('.amount'), function (field) {
+        var amount = parseAmount(field.value);
+        if (amount.ok && !amount.negative) { sum += amount.cents; }
+      });
+      var total = group.querySelector('.group__total');
+      total.textContent = sum ? money.format(sum / 100) : '';
+      total.classList.toggle('live', sum > 0);
+    });
+
+    beam.textContent = '';
+    var standing = nets();
+    if (!lines.length || !standing.length) {
+      beam.appendChild(emptyBlock('No balances yet',
+        "Fill in an amount above and each person's net position appears here as you type."));
+      return;
+    }
+
+    var scale = 0;
+    standing.forEach(function (p) { scale = Math.max(scale, Math.abs(p.cents)); });
+    if (scale === 0) { scale = 1; }
+
+    standing.slice().sort(function (a, b) {
+      return b.cents - a.cents || a.name.localeCompare(b.name);
+    }).forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'beam-row';
+
+      var name = document.createElement('span');
+      name.className = 'beam-name';
+      name.textContent = p.name;
+
+      var track = document.createElement('div');
+      track.className = 'beam-track';
+      var fill = document.createElement('div');
+      fill.className = 'beam-fill ' + (p.cents < 0 ? 'neg' : 'pos');
+      fill.style.width = (Math.abs(p.cents) / scale * 50) + '%';
+      track.appendChild(fill);
+
+      var val = document.createElement('span');
+      val.className = 'beam-val ' + (p.cents > 0 ? 'pos' : p.cents < 0 ? 'neg' : '');
+      val.textContent = money.format(p.cents / 100);
+
+      row.appendChild(name);
+      row.appendChild(track);
+      row.appendChild(val);
+      beam.appendChild(row);
+    });
+  }
+
+  function rebuild() {
+    drawChips();
+    buildGrid();
+    refresh();
+  }
+
+  /* ---------- settle ---------- */
+
+  function say(box, message) {
+    box.textContent = message;
+    box.hidden = false;
+  }
+
+  function showEmpty(lead, detail) {
+    transfers.textContent = '';
+    transfers.appendChild(emptyBlock(lead, detail));
+    footnote.hidden = true;
+    copyWrap.hidden = true;
+    lastPayments = [];
+  }
+
+  function fail(message) {
+    say(error, message);
+    showEmpty('Nothing to settle yet',
+      'Fill in the amounts above, then press Settle up to see who sends money to who.');
+  }
+
+  function settle() {
+    if (roster.length < 2) {
+      return fail('There is nobody on the trip yet. Add at least two people first.');
+    }
+
+    var broken = 0;
+    Array.prototype.forEach.call(grid.querySelectorAll('.cell'), function (row) {
+      if (!checkCell(row, true)) { broken++; }
+    });
+    if (broken) {
+      return fail(broken === 1
+        ? 'One amount still needs fixing. The note under it says what is wrong.'
+        : broken + ' amounts still need fixing. The notes under them say what is wrong.');
+    }
+
+    var lines = debts();
+    if (!lines.length) {
+      return fail('No amounts have been filled in yet. Put a number against at least one pair.');
+    }
 
     error.hidden = true;
 
+    var standing = nets();
+    var result = minTransfers(standing);
+    var payments = result.payments;
+
     if (!payments.length) {
-      return showEmpty('Everyone is square. No payments needed.');
+      return showEmpty('Everyone is square',
+        'These amounts cancel each other out exactly, so nobody has to send anything.');
     }
 
     lastPayments = payments;
@@ -717,13 +1208,13 @@ footer {
       route.className = 'route';
       var from = document.createElement('strong');
       from.textContent = payment.from;
-      var arrow = document.createElement('span');
-      arrow.className = 'arrow';
-      arrow.textContent = '\u2192';
+      var verb = document.createElement('span');
+      verb.className = 'verb';
+      verb.textContent = 'pays';
       var to = document.createElement('strong');
       to.textContent = payment.to;
       route.appendChild(from);
-      route.appendChild(arrow);
+      route.appendChild(verb);
       route.appendChild(to);
 
       var amt = document.createElement('span');
@@ -735,95 +1226,121 @@ footer {
       transfers.appendChild(line);
     });
 
-    var floor = Math.max(creditors.length, debtors.length);
-    if (payments.length === floor) {
-      footnote.textContent = '';
-      footnote.hidden = true;
-    } else {
-      footnote.textContent = 'Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
-      footnote.hidden = false;
+    var note = lines.length + (lines.length === 1 ? ' debt' : ' debts') + ' between ' +
+      roster.length + ' people, settled in ' + payments.length +
+      (payments.length === 1 ? ' payment.' : ' payments.');
+    if (payments.length !== result.floor) {
+      note += ' Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
     }
+    footnote.textContent = note;
+    footnote.hidden = false;
     copyWrap.hidden = false;
   }
 
-  var shared = decodeState((location.hash || '').replace(/^#/, ''));
-  if (shared && shared.length >= 2) {
-    shared.forEach(function (person) {
-      addRow(person.name, (person.cents / 100).toFixed(2));
+  /* ---------- paste ---------- */
+
+  function parseBulk(text) {
+    var out = [];
+    text.split(/\r?\n/).forEach(function (raw) {
+      var line = raw.trim();
+      if (!line || line.charAt(0) === '#') { return; }
+
+      var amountMatch = line.match(/([\d.,]*\d)\s*$/);
+      if (!amountMatch) { return; }
+      var cents = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
+      if (!isFinite(cents) || cents <= 0) { return; }
+
+      var head = line.slice(0, amountMatch.index)
+        .replace(/[$\u20AC\u00A3]/g, '')
+        .replace(/->|[=:>|\u2192\u203A]/g, '\t')
+        .replace(/,/g, '\t');
+      var parts = head.split('\t').map(function (part) { return part.trim(); })
+        .filter(function (part) { return part !== ''; });
+      if (parts.length < 2) { return; }
+
+      out.push({ paid: parts[0], owes: parts[1], cents: cents });
     });
-  } else {
-    shared = null;
-    for (var n = 0; n < startingRows; n++) { addRow(); }
+    return out;
   }
 
-  drawBeam();
-  syncDrop();
-  if (shared) { settle(); }
-
-  function syncDrop() {
-    dropBtn.hidden = rows.children.length <= startingRows;
-  }
-
-  function dropRow(row) {
-    if (!row || rows.children.length <= startingRows) { return null; }
-    var neighbour = row.previousElementSibling || row.nextElementSibling;
-    row.remove();
-    syncDrop();
-    error.hidden = true;
-    drawBeam();
-    return neighbour;
-  }
-
-  function focusName(row) {
-    if (!row) { return; }
-    var field = row.querySelector('.person');
-    if (!field) { return; }
-    field.focus();
-    field.setSelectionRange(field.value.length, field.value.length);
-  }
+  /* ---------- wiring ---------- */
 
   document.getElementById('add').addEventListener('click', function () {
-    addRow('', '');
-    syncDrop();
-    drawBeam();
-    rows.lastChild.querySelector('.person').focus();
+    if (addPeople(who.value)) { who.value = ''; }
+    who.focus();
   });
 
-  dropBtn.addEventListener('click', function () {
-    focusName(dropRow(rows.lastChild));
+  who.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter') { return; }
+    event.preventDefault();
+    if (addPeople(who.value)) { who.value = ''; }
   });
 
-  rows.addEventListener('input', function () {
+  people.addEventListener('click', function (event) {
+    var drop = event.target.closest ? event.target.closest('.chip__drop') : null;
+    if (drop) { dropPerson(drop.dataset.person); }
+  });
+
+  // Stay quiet while a box is being typed in; check it once focus leaves.
+  grid.addEventListener('input', function (event) {
+    var field = event.target;
+    if (!field.classList.contains('amount')) { return; }
+    cells[field.dataset.pair] = field.value;
     error.hidden = true;
-    drawBeam();
+    checkCell(field.closest('.cell'), false);
+    refresh();
   });
 
-  rows.addEventListener('keydown', function (event) {
+  grid.addEventListener('focusout', function (event) {
+    var row = event.target.closest ? event.target.closest('.cell') : null;
+    if (!row || row.contains(event.relatedTarget)) { return; }
+    checkCell(row, true);
+  });
+
+  grid.addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
       event.preventDefault();
       settle();
-      return;
-    }
-
-    if (event.key === 'Backspace' && event.target.classList.contains('person')) {
-      var row = event.target.parentNode;
-      var isEmpty = event.target.value === '' && row.querySelector('.amount').value === '';
-      if (isEmpty && rows.children.length > startingRows) {
-        event.preventDefault();
-        focusName(dropRow(row));
-      }
     }
   });
 
   document.getElementById('calc').addEventListener('click', settle);
 
+  document.getElementById('bulk-add').addEventListener('click', function () {
+    var parsed = parseBulk(bulk.value);
+    if (!parsed.length) {
+      return fail('Nothing in that paste looked like a debt line. Each one needs two names and an amount.');
+    }
+
+    parsed.forEach(function (line) { addPeople(line.paid + ',' + line.owes); });
+
+    var known = {};
+    roster.forEach(function (person) { known[person.key] = true; });
+
+    parsed.forEach(function (line) {
+      var payer = key(line.paid), ower = key(line.owes);
+      if (payer === ower || !known[payer] || !known[ower]) { return; }
+      var pair = pairKey(payer, ower);
+      // The same pair can appear on many purchases, so amounts stack up.
+      var running = parseAmount(cells[pair]);
+      var total = (running.ok && !running.negative ? running.cents : 0) + line.cents;
+      cells[pair] = (total / 100).toFixed(2);
+    });
+
+    bulk.value = '';
+    bulk.parentNode.open = false;
+    error.hidden = true;
+    rebuild();
+    settle();
+  });
+
   copyBtn.addEventListener('click', function () {
-    var lines = lastPayments.map(function (p) {
-      return p.from + ' \u2192 ' + p.to + '  ' + money.format(p.amount / 100);
+    var text = lastPayments.map(function (p) {
+      return p.from + ' pays ' + p.to + '  ' + money.format(p.amount / 100);
     }).join('\n');
 
-    var people = read().filter(function (p) { return !p.blank; });
-    var text = shareUrl(people) + '\n\n' + lines;
+    if (roster.length) { text = shareUrl() + '\n\n' + text; }
+
     var done = function () {
       copyBtn.textContent = 'Copied to clipboard';
       setTimeout(function () { copyBtn.textContent = 'Copy the list'; }, 1800);
@@ -841,6 +1358,23 @@ footer {
       document.body.removeChild(scratch);
     }
   });
+
+  /* ---------- boot ---------- */
+
+  var shared = decodeState((location.hash || '').replace(/^#/, ''));
+  if (shared) {
+    addPeople(shared.names.join(','));
+    shared.lines.forEach(function (line) {
+      var payer = key(line.paid), ower = key(line.owes);
+      if (payer === ower) { return; }
+      var pair = pairKey(payer, ower);
+      var running = parseAmount(cells[pair]);
+      cells[pair] = ((running.cents + line.cents) / 100).toFixed(2);
+    });
+  }
+
+  rebuild();
+  if (shared) { settle(); }
 })();
 </script>
 
