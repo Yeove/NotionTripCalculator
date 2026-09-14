@@ -117,6 +117,18 @@
     --shadow-pop:   0 6px 16px rgba(0, 0, 0, .38);
     --shadow-field: inset 0 1px 2px rgba(0, 0, 0, .22);
   }
+
+  .c-gray   { --tint: #2F2F2F; --tone: #9B9B9B; }
+  .c-brown  { --tint: #4A3228; --tone: #BA856F; }
+  .c-orange { --tint: #5C3B23; --tone: #C77D48; }
+  .c-yellow { --tint: #564328; --tone: #CA994B; }
+  .c-green  { --tint: #243D30; --tone: #529E72; }
+  .c-blue   { --tint: #143A4E; --tone: #5E87C9; }
+  .c-purple { --tint: #3C2D49; --tone: #9D68D3; }
+  .c-pink   { --tint: #4E2C3C; --tone: #D15796; }
+  .c-red    { --tint: #522E2A; --tone: #DF5452; }
+
+  .menu__swatch { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
 }
 
 * { box-sizing: border-box; }
@@ -332,13 +344,25 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 6px 6px 16px;
+  padding: 6px;
   border-radius: 999px;
-  background: var(--blue-tint);
-  color: var(--ink);
+  background: var(--tint);
+  color: var(--tone);
   font-size: var(--size-body);
   font-weight: 600;
 }
+/* The name doubles as the colour control, so it has to read as pressable. */
+.chip__name {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.chip__name:hover,
+.chip__name[aria-expanded="true"] { background: rgba(126, 140, 158, .22); }
 /* A close control needs room around it, not just a tiny glyph. */
 .chip__drop {
   width: 30px;
@@ -353,6 +377,80 @@ input:focus {
   cursor: pointer;
 }
 .chip__drop:hover { background: var(--card); color: var(--danger); }
+
+/* ---- one colour per person ----
+   Each class hands down a fill and a text tone, so a chip, a dot and a
+   name in the payment list can all read from the same pair. */
+
+.c-default { --tint: var(--blue-tint); --tone: var(--ink); }
+.c-gray    { --tint: #F1F1EF; --tone: #787774; }
+.c-brown   { --tint: #F3EEEE; --tone: #976D57; }
+.c-orange  { --tint: #FAEBDD; --tone: #CC782F; }
+.c-yellow  { --tint: #FBF3DB; --tone: #C29343; }
+.c-green   { --tint: #EDF3EC; --tone: #548164; }
+.c-blue    { --tint: #E7F3F8; --tone: #487CA5; }
+.c-purple  { --tint: #F6F3F9; --tone: #8A67AB; }
+.c-pink    { --tint: #FAF1F5; --tone: #B35488; }
+.c-red     { --tint: #FDEBEC; --tone: #C4554D; }
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+/* Nobody has picked a colour yet, so hold the space and draw nothing. */
+.dot.c-default { visibility: hidden; }
+
+.menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 212px;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-pop), 0 0 0 1px var(--rule);
+}
+.menu__label {
+  margin: 6px 10px 6px;
+  font-size: var(--size-meta);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.menu__item:hover, .menu__item:focus-visible { background: var(--row-focus); outline: none; }
+.menu__swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1px rgba(45, 72, 110, .16);
+}
+.menu__name { flex: 1 1 auto; }
+.menu__check { font-weight: 700; }
 
 /* ---- the debt grid ---- */
 
@@ -552,7 +650,7 @@ button.btn:active { transform: translateY(1px); }
 }
 .transfer:last-of-type { border-bottom: none; }
 .transfer .route { font-weight: 500; }
-.transfer .route strong { font-weight: 700; }
+.transfer .route strong { font-weight: 700; color: var(--tone, var(--ink)); }
 .transfer .verb { color: var(--ink-faint); margin: 0 8px; }
 .transfer .amt {
   font-family: var(--mono);
@@ -599,7 +697,7 @@ footer {
   </header>
 
   <h1>Notion Trip Calculator</h1>
-  <p class="lede">• Name everyone on the trip.<br />• Fill in what each person covered for the others.<br />• Settle up cancels the loops and returns the fewest transfers.</p>
+<!--  <p class="lede">• Name everyone on the trip.<br />• Fill in who owes whom<br />• Click "Settle up"<br />•  See the results.</p> -->
 
   <section class="panel">
     <h2>Who's on the trip</h2>
@@ -608,7 +706,7 @@ footer {
       <input type="text" id="who" placeholder="Name" aria-label="Name" autocomplete="off" />
       <button type="button" class="btn btn-quiet" id="add">Add person</button>
     </div>
-    <p class="hint">Press Enter to add. Several at once works too — separate them with commas.</p>
+    <p class="hint">Press Enter to add. Or use comma to add several people at once.</p>
 
     <div class="chips" id="people"></div>
     <p class="notice" id="roster-error" hidden></p>
@@ -685,13 +783,52 @@ footer {
   var bulk = document.getElementById('bulk');
   var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
-  var roster = [];   // [{ name: 'Sam', key: 'sam' }] — fixed once the grid is built
+  var roster = [];   // [{ name: 'Sam', key: 'sam', color: 'blue' }] — fixed once the grid is built
   var cells = {};    // 'payerKey|owerKey' -> whatever was typed in that box
   var lastPayments = [];
+
+  // Notion's own set, in Notion's own order, so a trip can be colour-matched
+  // to the page it was copied from.
+  var palette = [
+    { id: 'default', label: 'Default' },
+    { id: 'gray',    label: 'Gray' },
+    { id: 'brown',   label: 'Brown' },
+    { id: 'orange',  label: 'Orange' },
+    { id: 'yellow',  label: 'Yellow' },
+    { id: 'green',   label: 'Green' },
+    { id: 'blue',    label: 'Blue' },
+    { id: 'purple',  label: 'Purple' },
+    { id: 'pink',    label: 'Pink' },
+    { id: 'red',     label: 'Red' }
+  ];
 
   /* ---------- pure logic ---------- */
 
   function key(name) { return name.trim().toLowerCase().replace(/\s+/g, ' '); }
+
+  function paletteAt(i) { return palette[i] ? palette[i].id : 'default'; }
+
+  function paletteIndex(id) {
+    for (var i = 0; i < palette.length; i++) {
+      if (palette[i].id === id) { return i; }
+    }
+    return 0;
+  }
+
+  function colorOf(name) {
+    var k = key(name);
+    for (var i = 0; i < roster.length; i++) {
+      if (roster[i].key === k) { return roster[i].color || 'default'; }
+    }
+    return 'default';
+  }
+
+  function dot(name) {
+    var mark = document.createElement('span');
+    mark.className = 'dot c-' + colorOf(name);
+    mark.setAttribute('aria-hidden', 'true');
+    return mark;
+  }
 
   // Roll a list of {paid, owes, cents} debts into one net position per person.
   function ledger(lines) {
@@ -750,10 +887,11 @@ footer {
   }
 
   /* ---------- share code ----------
-     [2, varint nameCount, (len, utf8 bytes)*, varint cellCount,
+     [3, varint nameCount, (len, utf8 bytes, colourIdx)*, varint cellCount,
       (varint payerIdx, varint owerIdx, varint cents)*, checksum]
      The name table is the whole roster, so people who neither paid nor owe
-     anything still survive the round trip. Older v1 links still open.     */
+     anything still survive the round trip, and each name carries the colour
+     it was given. Older v1 and v2 links still open, uncoloured.            */
 
   function putVarint(out, n) {
     while (n > 127) { out.push((n % 128) + 128); n = Math.floor(n / 128); }
@@ -762,20 +900,25 @@ footer {
 
   function encodeState(lines, roll) {
     var enc = new TextEncoder();
-    var index = {}, names = [];
-    function remember(name) {
+    var index = {}, names = [], tints = [];
+    function remember(name, color) {
       var k = key(name);
-      if (!(k in index)) { index[k] = names.length; names.push(name.trim().slice(0, 40)); }
+      if (!(k in index)) {
+        index[k] = names.length;
+        names.push(name.trim().slice(0, 40));
+        tints.push(paletteIndex(color || 'default'));
+      }
     }
-    (roll || []).forEach(function (person) { remember(person.name); });
+    (roll || []).forEach(function (person) { remember(person.name, person.color); });
     lines.forEach(function (line) { remember(line.paid); remember(line.owes); });
 
-    var out = [2];
+    var out = [3];
     putVarint(out, names.length);
-    names.forEach(function (name) {
+    names.forEach(function (name, slot) {
       var nb = enc.encode(name);
       out.push(nb.length);
       for (var j = 0; j < nb.length; j++) { out.push(nb[j]); }
+      out.push(tints[slot]);
     });
     putVarint(out, lines.length);
     lines.forEach(function (line) {
@@ -845,11 +988,17 @@ footer {
         };
       }
 
-      if (bytes[0] !== 2) { return null; }
+      if (bytes[0] !== 2 && bytes[0] !== 3) { return null; }
+      var tinted = bytes[0] === 3;
 
-      var names = [];
+      var names = [], colors = [];
       var nameCount = varint();
-      for (var a = 0; a < nameCount; a++) { names.push(text()); }
+      for (var a = 0; a < nameCount; a++) {
+        names.push(text());
+        if (!tinted) { colors.push('default'); continue; }
+        if (p >= end) { throw new Error('short'); }
+        colors.push(paletteAt(bytes[p++]));
+      }
 
       var lines = [];
       var lineCount = varint();
@@ -858,7 +1007,7 @@ footer {
         if (!names[from] || !names[to]) { return null; }
         lines.push({ paid: names[from], owes: names[to], cents: cents });
       }
-      return names.length ? { names: names, lines: lines } : null;
+      return names.length ? { names: names, colors: colors, lines: lines } : null;
     } catch (e) {
       return null;
     }
@@ -887,7 +1036,7 @@ footer {
       var already = roster.some(function (person) { return person.key === k; });
       if (already) { repeats.push(name); return; }
 
-      roster.push({ name: name, key: k });
+      roster.push({ name: name, key: k, color: 'default' });
       added++;
     });
 
@@ -917,8 +1066,17 @@ footer {
     people.textContent = '';
     roster.forEach(function (person) {
       var chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.appendChild(document.createTextNode(person.name));
+      chip.className = 'chip c-' + (person.color || 'default');
+
+      var pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'chip__name';
+      pick.dataset.person = person.key;
+      pick.textContent = person.name;
+      pick.setAttribute('aria-haspopup', 'true');
+      pick.setAttribute('aria-expanded', 'false');
+      pick.title = 'Pick a colour for ' + person.name;
+      chip.appendChild(pick);
 
       var drop = document.createElement('button');
       drop.type = 'button';
@@ -943,7 +1101,8 @@ footer {
 
     var name = document.createElement('span');
     name.className = 'cell__name';
-    name.textContent = ower.name;
+    name.appendChild(dot(ower.name));
+    name.appendChild(document.createTextNode(ower.name));
 
     var wrap = document.createElement('div');
     wrap.className = 'money';
@@ -992,7 +1151,8 @@ footer {
       var head = document.createElement('h3');
       head.className = 'group__head';
       var label = document.createElement('span');
-      label.textContent = payer.name + ' paid for';
+      label.appendChild(dot(payer.name));
+      label.appendChild(document.createTextNode(payer.name + ' paid for'));
       var total = document.createElement('span');
       total.className = 'group__total';
       head.appendChild(label);
@@ -1120,7 +1280,8 @@ footer {
 
       var name = document.createElement('span');
       name.className = 'beam-name';
-      name.textContent = p.name;
+      name.appendChild(dot(p.name));
+      name.appendChild(document.createTextNode(p.name));
 
       var track = document.createElement('div');
       track.className = 'beam-track';
@@ -1146,6 +1307,127 @@ footer {
     refresh();
   }
 
+  /* ---------- the colour menu ---------- */
+
+  var openPicker = null;
+
+  function closePicker(restoreFocus) {
+    if (!openPicker) { return; }
+    var anchor = openPicker.anchor;
+    openPicker.el.parentNode.removeChild(openPicker.el);
+    openPicker = null;
+    document.removeEventListener('mousedown', outsidePicker, true);
+    window.removeEventListener('resize', windowClosePicker);
+    window.removeEventListener('scroll', windowClosePicker, true);
+    if (anchor && document.contains(anchor)) {
+      anchor.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) { anchor.focus(); }
+    }
+  }
+
+  function windowClosePicker() { closePicker(false); }
+
+  function outsidePicker(event) {
+    if (!openPicker) { return; }
+    if (openPicker.el.contains(event.target)) { return; }
+    if (openPicker.anchor.contains(event.target)) { return; }  // the chip toggles itself
+    closePicker(false);
+  }
+
+  function placePicker(el, anchor) {
+    var box = anchor.getBoundingClientRect();
+    var w = el.offsetWidth, h = el.offsetHeight;
+    var left = Math.min(Math.max(8, box.left), Math.max(8, window.innerWidth - w - 8));
+    var top = box.bottom + 6;
+    if (top + h > window.innerHeight - 8) {
+      top = Math.max(8, box.top - h - 6);
+    }
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = Math.round(top) + 'px';
+  }
+
+  function openColorPicker(person, anchor) {
+    closePicker(false);
+
+    var el = document.createElement('div');
+    el.className = 'menu';
+    el.setAttribute('role', 'menu');
+    el.setAttribute('aria-label', 'Colour for ' + person.name);
+
+    var heading = document.createElement('p');
+    heading.className = 'menu__label';
+    heading.textContent = 'Colors';
+    el.appendChild(heading);
+
+    var current = person.color || 'default';
+    var focusMe = null;
+
+    palette.forEach(function (color) {
+      var picked = current === color.id;
+
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'menu__item';
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', picked ? 'true' : 'false');
+
+      var swatch = document.createElement('span');
+      swatch.className = 'menu__swatch c-' + color.id;
+
+      var label = document.createElement('span');
+      label.className = 'menu__name';
+      label.textContent = color.label;
+
+      var check = document.createElement('span');
+      check.className = 'menu__check';
+      check.setAttribute('aria-hidden', 'true');
+      check.textContent = picked ? '\u2713' : '';
+
+      item.appendChild(swatch);
+      item.appendChild(label);
+      item.appendChild(check);
+
+      item.addEventListener('click', function () {
+        person.color = color.id;
+        closePicker(false);
+        rebuild();
+        // Only repaint a list that is actually on screen; an empty panel
+        // is showing its own message.
+        if (lastPayments.length) { paintPayments(); }
+        var back = people.querySelector('.chip__name[data-person="' + person.key + '"]');
+        if (back) { back.focus(); }
+      });
+
+      if (picked) { focusMe = item; }
+      el.appendChild(item);
+    });
+
+    el.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePicker(true);
+        return;
+      }
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') { return; }
+      event.preventDefault();
+      var items = Array.prototype.slice.call(el.querySelectorAll('.menu__item'));
+      var at = items.indexOf(document.activeElement);
+      var next = (at + (event.key === 'ArrowDown' ? 1 : items.length - 1) + items.length) % items.length;
+      items[next].focus();
+    });
+
+    document.body.appendChild(el);
+    placePicker(el, anchor);
+    anchor.setAttribute('aria-expanded', 'true');
+    openPicker = { el: el, anchor: anchor, key: person.key };
+
+    (focusMe || el.querySelector('.menu__item')).focus();
+
+    document.addEventListener('mousedown', outsidePicker, true);
+    window.addEventListener('resize', windowClosePicker);
+    window.addEventListener('scroll', windowClosePicker, true);
+  }
+
   /* ---------- settle ---------- */
 
   function say(box, message) {
@@ -1165,6 +1447,37 @@ footer {
     say(error, message);
     showEmpty('Nothing to settle yet',
       'Fill in the amounts above, then press Settle up to see who sends money to who.');
+  }
+
+  function paintPayments() {
+    transfers.textContent = '';
+    lastPayments.forEach(function (payment) {
+      var line = document.createElement('div');
+      line.className = 'transfer';
+
+      var route = document.createElement('span');
+      route.className = 'route';
+      var from = document.createElement('strong');
+      from.className = 'c-' + colorOf(payment.from);
+      from.textContent = payment.from;
+      var verb = document.createElement('span');
+      verb.className = 'verb';
+      verb.textContent = 'pays';
+      var to = document.createElement('strong');
+      to.className = 'c-' + colorOf(payment.to);
+      to.textContent = payment.to;
+      route.appendChild(from);
+      route.appendChild(verb);
+      route.appendChild(to);
+
+      var amt = document.createElement('span');
+      amt.className = 'amt';
+      amt.textContent = money.format(payment.amount / 100);
+
+      line.appendChild(route);
+      line.appendChild(amt);
+      transfers.appendChild(line);
+    });
   }
 
   function settle() {
@@ -1199,41 +1512,14 @@ footer {
     }
 
     lastPayments = payments;
-    transfers.textContent = '';
-    payments.forEach(function (payment) {
-      var line = document.createElement('div');
-      line.className = 'transfer';
+    paintPayments();
 
-      var route = document.createElement('span');
-      route.className = 'route';
-      var from = document.createElement('strong');
-      from.textContent = payment.from;
-      var verb = document.createElement('span');
-      verb.className = 'verb';
-      verb.textContent = 'pays';
-      var to = document.createElement('strong');
-      to.textContent = payment.to;
-      route.appendChild(from);
-      route.appendChild(verb);
-      route.appendChild(to);
-
-      var amt = document.createElement('span');
-      amt.className = 'amt';
-      amt.textContent = money.format(payment.amount / 100);
-
-      line.appendChild(route);
-      line.appendChild(amt);
-      transfers.appendChild(line);
-    });
-
-    var note = lines.length + (lines.length === 1 ? ' debt' : ' debts') + ' between ' +
-      roster.length + ' people, settled in ' + payments.length +
-      (payments.length === 1 ? ' payment.' : ' payments.');
+    var note = '';
     if (payments.length !== result.floor) {
-      note += ' Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
+      note = 'Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
     }
     footnote.textContent = note;
-    footnote.hidden = false;
+    footnote.hidden = !note;
     copyWrap.hidden = false;
   }
 
@@ -1277,8 +1563,26 @@ footer {
   });
 
   people.addEventListener('click', function (event) {
-    var drop = event.target.closest ? event.target.closest('.chip__drop') : null;
-    if (drop) { dropPerson(drop.dataset.person); }
+    if (!event.target.closest) { return; }
+
+    var drop = event.target.closest('.chip__drop');
+    if (drop) {
+      closePicker(false);
+      dropPerson(drop.dataset.person);
+      return;
+    }
+
+    var pick = event.target.closest('.chip__name');
+    if (!pick) { return; }
+
+    if (openPicker && openPicker.key === pick.dataset.person) {
+      closePicker(false);
+      return;
+    }
+
+    var person = null;
+    roster.forEach(function (one) { if (one.key === pick.dataset.person) { person = one; } });
+    if (person) { openColorPicker(person, pick); }
   });
 
   // Stay quiet while a box is being typed in; check it once focus leaves.
@@ -1364,6 +1668,14 @@ footer {
   var shared = decodeState((location.hash || '').replace(/^#/, ''));
   if (shared) {
     addPeople(shared.names.join(','));
+    if (shared.colors) {
+      shared.names.forEach(function (name, slot) {
+        var k = key(name);
+        roster.forEach(function (person) {
+          if (person.key === k) { person.color = shared.colors[slot]; }
+        });
+      });
+    }
     shared.lines.forEach(function (line) {
       var payer = key(line.paid), ower = key(line.owes);
       if (payer === ower) { return; }
