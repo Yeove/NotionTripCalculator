@@ -2,7 +2,7 @@
 
 Work out who pays who after a group trip, in the fewest possible transfers.
 
-**Live at [calculator.yeove.com](https://calculator.yeove.com)**
+**Live at [notioncalculator.yeove.com](https://notioncalculator.yeove.com)**
 
 
 ## Notion Setup
