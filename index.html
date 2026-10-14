@@ -2192,7 +2192,6 @@ footer {
      Tapping the chart, or another tab, skips to the end.                  */
 
   var anim = null;
-  var calm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   var COMET = 0.38;   // length of the rolling highlight, as a share of its arrow
 
   function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -2562,7 +2561,7 @@ footer {
 
   function animateFlow(from, to) {
     var L = lastLayers;
-    if (!L || from === to || (calm && calm.matches)) { return false; }
+    if (!L || from === to) { return false; }
     var lo = Math.min(from, to), hi = Math.max(from, to);
     var segs = [];
     if (lo === 0) { segs = segs.concat(mergeSegments(L)); }
