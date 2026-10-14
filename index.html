@@ -729,6 +729,25 @@ button.btn:active { transform: translateY(1px); }
 .flow__caption .in  { color: var(--owed); font-weight: 700; }
 .flow__caption .out { color: var(--danger); font-weight: 700; }
 
+.flow__caption .sum { color: var(--ink); font-weight: 700; }
+
+/* Transitions between options. A soft halo marks the arrows being talked
+   about (red: the roundabout route, green: the direct one), and a short
+   bright comet rolls along them in the direction the money travels. */
+.flow svg.is-playing { cursor: pointer; }
+.flow .halo { fill: none; stroke-linecap: round; }
+.flow .halo.bad  { stroke: var(--danger); }
+.flow .halo.good { stroke: var(--owed); }
+.flow .edge path.halo.bad  { stroke: var(--danger); }
+.flow .edge path.halo.good { stroke: var(--owed); }
+.flow .edge path.comet { stroke: #FFFFFF; opacity: .9; }
+.flow .bubble rect { fill: var(--card); stroke: var(--field-line); stroke-width: 1.5; }
+.flow .bubble text { font-family: var(--mono); font-size: 12px; font-weight: 700; fill: var(--ink); }
+.flow .bubble.out rect { fill: var(--danger-tint); stroke: var(--danger); }
+.flow .bubble.out text { fill: var(--danger); }
+.flow .bubble.in rect  { fill: var(--owed-tint); stroke: var(--owed); }
+.flow .bubble.in text  { fill: var(--owed); }
+
 /* An empty panel names what is missing and what to do about it. */
 .empty { margin: 0; font-weight: 500; color: var(--ink-soft); }
 .empty strong { display: block; font-weight: 700; color: var(--ink); }
@@ -1771,7 +1790,10 @@ footer {
   window.addEventListener('resize', function () {
     if (fitPending || flowPanel.hidden) { return; }
     fitPending = true;
-    requestAnimationFrame(function () { fitPending = false; drawFlow(); });
+    requestAnimationFrame(function () {
+      fitPending = false;
+      if (anim) { finishAnim(); } else { drawFlow(); }
+    });
   });
 
   function payWord(n) { return n + (n === 1 ? ' payment' : ' payments'); }
@@ -1818,13 +1840,9 @@ footer {
     return { cx: cx, cy: cy, apex: { x: (A.x + 2 * cx + B.x) / 4, y: (A.y + 2 * cy + B.y) / 4 } };
   }
 
-  function paintFlow() {
-    if (!lastLayers) { flowPanel.hidden = true; return; }
-    var layers = flowLayers(lastLayers);
-    if (flowState.focus >= lastLayers.people.length) { flowState.focus = -1; }
-
+  function paintTabs() {
     flowTabs.textContent = '';
-    layers.forEach(function (layer, i) {
+    flowLayers(lastLayers).forEach(function (layer, i) {
       var tab = document.createElement('button');
       tab.type = 'button';
       tab.className = 'tab';
@@ -1838,18 +1856,21 @@ footer {
       tab.appendChild(small);
       flowTabs.appendChild(tab);
     });
+  }
 
+  function paintFlow() {
+    stopAnim();
+    if (!lastLayers) { flowPanel.hidden = true; return; }
+    if (flowState.focus >= lastLayers.people.length) { flowState.focus = -1; }
+    paintTabs();
     flowPanel.hidden = false;   // has to be visible before it can be measured
     drawFlow();
   }
 
-  function drawFlow() {
-    var L = lastLayers;
-    if (!L) { return; }
+  // Everything about the picture that doesn't depend on which option is
+  // showing: where everyone sits, how big the card is, how thick a dollar is.
+  function flowGeometry(L) {
     var people = L.people, n = people.length;
-    var layer = flowLayers(L)[flowState.layer];
-    var grid = layer.grid;
-    var focus = flowState.focus;
 
     var net = people.map(function (p) {
       var sum = 0;
@@ -1924,136 +1945,128 @@ footer {
       });
     });
 
-    var touching = {};
-    var edges = [];
+    return { W: W, H: H, nodeR: nodeR, lineH: lineH, nameSize: nameSize, netSize: netSize,
+             nameMax: nameMax, spots: spots, net: net, biggest: biggest };
+  }
+
+  function makeEdge(geo, i, j, amount) {
+    var A = geo.spots[i], B = geo.spots[j];
+    var text = money.format(amount / 100);
+    return { from: i, to: j, amount: amount, text: text, shown: text, sign: 0, on: false,
+             A: A, B: B, bow: bowOf(A, B), width: text.length * 7.3 + 10 };
+  }
+
+  function edgesFor(L, geo, grid, focus, touching) {
+    var people = L.people, edges = [];
     people.forEach(function (a, i) {
       people.forEach(function (b, j) {
         var amount = grid[a.key][b.key];
         if (i === j || amount <= 0) { return; }
-        var on = focus >= 0 && (i === focus || j === focus);
-        if (on) { touching[i] = true; touching[j] = true; }
-        var text = money.format(amount / 100);
+        var e = makeEdge(geo, i, j, amount);
+        e.on = focus >= 0 && (i === focus || j === focus);
+        if (e.on) { touching[i] = true; touching[j] = true; }
         // With someone picked, their arrows read from their side:
         // money coming to them is +green, money leaving them is -red.
-        var sign = on ? (j === focus ? 1 : -1) : 0;
-        var shown = sign ? signedMoney(sign * amount) : text;
-        edges.push({ from: i, to: j, amount: amount, on: on, text: text, shown: shown, sign: sign,
-                     A: spots[i], B: spots[j], bow: bowOf(spots[i], spots[j]),
-                     width: shown.length * 7.3 + 10 });
+        e.sign = e.on ? (j === focus ? 1 : -1) : 0;
+        if (e.sign) { e.shown = signedMoney(e.sign * amount); }
+        e.width = e.shown.length * 7.3 + 10;
+        edges.push(e);
       });
     });
+    return edges;
+  }
 
-    // Each amount slides along its own arrow until it finds a clear spot.
-    // If a layer is too busy for every amount to sit cleanly, amounts show
-    // only for the person picked.
-    function along(e, t) {
-      var u = 1 - t, C = { x: e.bow.cx, y: e.bow.cy };
-      return { x: u * u * e.A.x + 2 * u * t * C.x + t * t * e.B.x,
-               y: u * u * e.A.y + 2 * u * t * C.y + t * t * e.B.y };
-    }
-    function place(list) {
-      var taken = spots.map(function (spot) {
-        return { x1: spot.x - nodeR - 3, y1: spot.y - nodeR - 3, x2: spot.x + nodeR + 3, y2: spot.y + nodeR + 3 };
-      });
-      var clean = true;
-      list.slice().sort(function (a, b) { return b.amount - a.amount; }).forEach(function (e) {
-        var spot = null;
-        // Along the arrow first, then just beside it on either side.
-        var steps = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
-        var tries = [];
-        [0, 16, -16].forEach(function (off) { steps.forEach(function (t) { tries.push([t, off]); }); });
-        tries.some(function (pick) {
-          var at = along(e, pick[0]);
-          if (pick[1]) {
-            var t = pick[0], C = { x: e.bow.cx, y: e.bow.cy };
-            var dx = 2 * (1 - t) * (C.x - e.A.x) + 2 * t * (e.B.x - C.x);
-            var dy = 2 * (1 - t) * (C.y - e.A.y) + 2 * t * (e.B.y - C.y);
-            var dl = Math.sqrt(dx * dx + dy * dy) || 1;
-            at = { x: at.x - dy / dl * pick[1], y: at.y + dx / dl * pick[1] };
-          }
-          var box = { x1: at.x - e.width / 2 - 1, y1: at.y - 11, x2: at.x + e.width / 2 + 1, y2: at.y + 11 };
-          var hit = taken.some(function (o) {
-            return box.x1 < o.x2 && box.x2 > o.x1 && box.y1 < o.y2 && box.y2 > o.y1;
-          });
-          if (!hit) { spot = { at: at, box: box }; }
-          return !hit;
-        });
-        if (!spot) {
-          clean = false;
-          var mid = along(e, 0.5);
-          spot = { at: mid, box: { x1: mid.x - e.width / 2, y1: mid.y - 12, x2: mid.x + e.width / 2, y2: mid.y + 12 } };
+  // The curve and arrowhead for one arrow at a given weight. `full` runs
+  // all the way to the tip, for highlights laid over the whole arrow.
+  function arrowPath(geo, e, amount) {
+    var A = e.A, B = e.B, Cx = e.bow.cx, Cy = e.bow.cy, gap = geo.nodeR + 3;
+    var sx = Cx - A.x, sy = Cy - A.y, sl = Math.sqrt(sx * sx + sy * sy);
+    var tx = B.x - Cx, ty = B.y - Cy, tl = Math.sqrt(tx * tx + ty * ty);
+    sx /= sl; sy /= sl; tx /= tl; ty /= tl;
+
+    var width = 1.5 + 4.5 * Math.sqrt(Math.max(0, amount) / geo.biggest);
+    var head = 7 + width * 1.3;
+    var S = { x: A.x + sx * gap, y: A.y + sy * gap };
+    var tip = { x: B.x - tx * gap, y: B.y - ty * gap };
+    var stop = { x: tip.x - tx * head * 0.7, y: tip.y - ty * head * 0.7 };
+    var curve = 'M' + S.x.toFixed(1) + ' ' + S.y.toFixed(1) + ' Q' + Cx.toFixed(1) + ' ' + Cy.toFixed(1) + ' ';
+    var bx = tip.x - tx * head, by = tip.y - ty * head, half = head * 0.55;
+    return {
+      width: width,
+      d: curve + stop.x.toFixed(1) + ' ' + stop.y.toFixed(1),
+      full: curve + tip.x.toFixed(1) + ' ' + tip.y.toFixed(1),
+      points: [tip.x, tip.y, bx + ty * half, by - tx * half, bx - ty * half, by + tx * half]
+        .map(function (v) { return v.toFixed(1); }).join(' ')
+    };
+  }
+
+  function along(e, t) {
+    var u = 1 - t, C = { x: e.bow.cx, y: e.bow.cy };
+    return { x: u * u * e.A.x + 2 * u * t * C.x + t * t * e.B.x,
+             y: u * u * e.A.y + 2 * u * t * C.y + t * t * e.B.y };
+  }
+
+  function nodeBoxes(geo) {
+    return geo.spots.map(function (spot) {
+      var r = geo.nodeR + 3;
+      return { x1: spot.x - r, y1: spot.y - r, x2: spot.x + r, y2: spot.y + r };
+    });
+  }
+
+  // Each amount slides along its own arrow until it finds a clear spot.
+  // `taken` carries over, so later lists steer around earlier ones.
+  function placeLabels(list, taken) {
+    var clean = true;
+    list.slice().sort(function (a, b) { return b.amount - a.amount; }).forEach(function (e) {
+      var spot = null;
+      // Along the arrow first, then just beside it on either side.
+      var steps = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
+      var tries = [];
+      [0, 16, -16].forEach(function (off) { steps.forEach(function (t) { tries.push([t, off]); }); });
+      tries.some(function (pick) {
+        var at = along(e, pick[0]);
+        if (pick[1]) {
+          var t = pick[0], C = { x: e.bow.cx, y: e.bow.cy };
+          var dx = 2 * (1 - t) * (C.x - e.A.x) + 2 * t * (e.B.x - C.x);
+          var dy = 2 * (1 - t) * (C.y - e.A.y) + 2 * t * (e.B.y - C.y);
+          var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+          at = { x: at.x - dy / dl * pick[1], y: at.y + dx / dl * pick[1] };
         }
-        e.label = spot.at;
-        taken.push(spot.box);
+        var box = { x1: at.x - e.width / 2 - 1, y1: at.y - 11, x2: at.x + e.width / 2 + 1, y2: at.y + 11 };
+        var hit = taken.some(function (o) {
+          return box.x1 < o.x2 && box.x2 > o.x1 && box.y1 < o.y2 && box.y2 > o.y1;
+        });
+        if (!hit) { spot = { at: at, box: box }; }
+        return !hit;
       });
-      return clean;
-    }
-    var allLabels = edges.length <= 16 && place(edges);
-    if (!allLabels) {
-      edges.forEach(function (e) { e.label = null; });
-      place(edges.filter(function (e) { return e.on; }));
-    }
-
-    flowCanvas.textContent = '';
-    var root = sv('svg', {
-      viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'group',
-      'aria-label': 'Money flow, ' + layer.name + ': ' + payWord(layer.count)
-    }, flowCanvas);
-    var cls = [];
-    if (allLabels) { cls.push('all-labels'); }
-    if (focus >= 0) { cls.push('has-focus'); }
-    root.setAttribute('class', cls.join(' '));
-
-    var edgeLayer = sv('g', {}, root);
-    var labelLayer = sv('g', {}, root);
-    var nodeLayer = sv('g', {}, root);
-
-    edges.forEach(function (e) {
-      var A = e.A, B = e.B, Cx = e.bow.cx, Cy = e.bow.cy;
-      var sx = Cx - A.x, sy = Cy - A.y, sl = Math.sqrt(sx * sx + sy * sy);
-      var tx = B.x - Cx, ty = B.y - Cy, tl = Math.sqrt(tx * tx + ty * ty);
-      sx /= sl; sy /= sl; tx /= tl; ty /= tl;
-
-      var width = 1.5 + 4.5 * Math.sqrt(e.amount / biggest);
-      var head = 7 + width * 1.3;
-      var S = { x: A.x + sx * (nodeR + 3), y: A.y + sy * (nodeR + 3) };
-      var tip = { x: B.x - tx * (nodeR + 3), y: B.y - ty * (nodeR + 3) };
-      var stop = { x: tip.x - tx * head * 0.7, y: tip.y - ty * head * 0.7 };
-
-      var from = people[e.from], to = people[e.to];
-      var kind = 'edge c-' + colorOf(from.name) + (e.on ? ' is-on' : '');
-      var g = sv('g', { 'class': kind }, edgeLayer);
-      sv('title', {}, g).textContent = from.name + ' pays ' + to.name + ' ' + e.text;
-      sv('path', {
-        d: 'M' + S.x.toFixed(1) + ' ' + S.y.toFixed(1) + ' Q' + Cx.toFixed(1) + ' ' + Cy.toFixed(1) +
-           ' ' + stop.x.toFixed(1) + ' ' + stop.y.toFixed(1),
-        'stroke-width': width.toFixed(2)
-      }, g);
-      var bx = tip.x - tx * head, by = tip.y - ty * head, half = head * 0.55;
-      sv('polygon', {
-        points: [tip.x, tip.y, bx + ty * half, by - tx * half, bx - ty * half, by + tx * half]
-          .map(function (v) { return v.toFixed(1); }).join(' ')
-      }, g);
-
-      if (!e.label) { return; }
-      var tag = sv('g', { 'class': kind }, labelLayer);
-      var label = sv('g', { 'class': 'edge__label' }, tag);
-      sv('rect', { x: (e.label.x - e.width / 2).toFixed(1), y: (e.label.y - 10).toFixed(1),
-                   width: e.width.toFixed(1), height: 20, rx: 6 }, label);
-      sv('text', { x: e.label.x.toFixed(1), y: (e.label.y + 4).toFixed(1), 'text-anchor': 'middle',
-                   'class': e.sign > 0 ? 'in' : e.sign < 0 ? 'out' : '' }, label)
-        .textContent = e.shown;
+      if (!spot) {
+        clean = false;
+        var mid = along(e, 0.5);
+        spot = { at: mid, box: { x1: mid.x - e.width / 2, y1: mid.y - 12, x2: mid.x + e.width / 2, y2: mid.y + 12 } };
+      }
+      e.label = spot.at;
+      taken.push(spot.box);
     });
+    return clean;
+  }
 
-    people.forEach(function (p, i) {
-      var spot = spots[i];
+  function flowRoot(geo, label) {
+    flowCanvas.textContent = '';
+    return sv('svg', {
+      viewBox: '0 0 ' + geo.W + ' ' + geo.H, width: geo.W, height: geo.H, role: 'group', 'aria-label': label
+    }, flowCanvas);
+  }
+
+  function drawNodes(L, geo, focus, touching, parent) {
+    L.people.forEach(function (p, i) {
+      var spot = geo.spots[i], net = geo.net[i], nodeR = geo.nodeR, lineH = geo.lineH;
       var on = focus === i || !!touching[i];
       var g = sv('g', {
         'class': 'node c-' + colorOf(p.name) + (on ? ' is-on' : ''),
         tabindex: 0, role: 'button', 'data-index': i,
         'aria-pressed': focus === i ? 'true' : 'false',
-        'aria-label': p.name + ', net ' + signedMoney(net[i])
-      }, nodeLayer);
+        'aria-label': p.name + ', net ' + signedMoney(net)
+      }, parent);
       sv('title', {}, g).textContent = p.name;
       sv('circle', { cx: spot.x.toFixed(1), cy: spot.y.toFixed(1), r: nodeR }, g);
       sv('text', {
@@ -2068,14 +2081,65 @@ footer {
       var top = oy < -0.35 ? ly - lineH * 2 : oy > 0.35 ? ly : ly - lineH;
       sv('text', {
         'class': 'name', x: lx.toFixed(1), y: (top + lineH - 4).toFixed(1),
-        'text-anchor': anchor, 'font-size': nameSize
-      }, g).textContent = short(p.name, nameMax);
+        'text-anchor': anchor, 'font-size': geo.nameSize
+      }, g).textContent = short(p.name, geo.nameMax);
       sv('text', {
-        'class': 'net' + (net[i] > 0 ? ' in' : net[i] < 0 ? ' out' : ''),
+        'class': 'net' + (net > 0 ? ' in' : net < 0 ? ' out' : ''),
         x: lx.toFixed(1), y: (top + lineH * 2 - 4).toFixed(1),
-        'text-anchor': anchor, 'font-size': netSize
-      }, g).textContent = signedMoney(net[i]);
+        'text-anchor': anchor, 'font-size': geo.netSize
+      }, g).textContent = signedMoney(net);
     });
+  }
+
+  function drawFlow() {
+    var L = lastLayers;
+    if (!L) { return; }
+    var people = L.people;
+    var layer = flowLayers(L)[flowState.layer];
+    var grid = layer.grid;
+    var focus = flowState.focus;
+    var geo = flowGeometry(L);
+
+    // If a layer is too busy for every amount to sit cleanly, amounts show
+    // only for the person picked.
+    var touching = {};
+    var edges = edgesFor(L, geo, grid, focus, touching);
+    var allLabels = edges.length <= 16 && placeLabels(edges, nodeBoxes(geo));
+    if (!allLabels) {
+      edges.forEach(function (e) { e.label = null; });
+      placeLabels(edges.filter(function (e) { return e.on; }), nodeBoxes(geo));
+    }
+
+    var root = flowRoot(geo, 'Money flow, ' + layer.name + ': ' + payWord(layer.count));
+    var cls = [];
+    if (allLabels) { cls.push('all-labels'); }
+    if (focus >= 0) { cls.push('has-focus'); }
+    root.setAttribute('class', cls.join(' '));
+
+    var edgeLayer = sv('g', {}, root);
+    var labelLayer = sv('g', {}, root);
+    var nodeLayer = sv('g', {}, root);
+
+    edges.forEach(function (e) {
+      var arrow = arrowPath(geo, e, e.amount);
+      var from = people[e.from], to = people[e.to];
+      var kind = 'edge c-' + colorOf(from.name) + (e.on ? ' is-on' : '');
+      var g = sv('g', { 'class': kind }, edgeLayer);
+      sv('title', {}, g).textContent = from.name + ' pays ' + to.name + ' ' + e.text;
+      sv('path', { d: arrow.d, 'stroke-width': arrow.width.toFixed(2) }, g);
+      sv('polygon', { points: arrow.points }, g);
+
+      if (!e.label) { return; }
+      var tag = sv('g', { 'class': kind }, labelLayer);
+      var label = sv('g', { 'class': 'edge__label' }, tag);
+      sv('rect', { x: (e.label.x - e.width / 2).toFixed(1), y: (e.label.y - 10).toFixed(1),
+                   width: e.width.toFixed(1), height: 20, rx: 6 }, label);
+      sv('text', { x: e.label.x.toFixed(1), y: (e.label.y + 4).toFixed(1), 'text-anchor': 'middle',
+                   'class': e.sign > 0 ? 'in' : e.sign < 0 ? 'out' : '' }, label)
+        .textContent = e.shown;
+    });
+
+    drawNodes(L, geo, focus, touching, nodeLayer);
 
     // The caption does the arithmetic for whoever is picked.
     flowCaption.textContent = '';
@@ -2087,39 +2151,525 @@ footer {
     }
     var person = people[focus], gets = 0, gives = 0;
     people.forEach(function (q) { gets += grid[q.key][person.key]; gives += grid[person.key][q.key]; });
-    function amount(cents) {
-      var span = document.createElement('span');
-      span.className = cents > 0 ? 'in' : cents < 0 ? 'out' : '';
-      span.textContent = signedMoney(cents);
-      return span;
+    tell([{ person: focus }, ' receives ', { cents: gets }, ' and sends ', { cents: -gives },
+          ', for a net of ', { cents: gets - gives }, '.'], people);
+  }
+
+  // Captions are built from plain strings, people (coloured by their tag)
+  // and signed amounts.
+  function tell(parts, people) {
+    flowCaption.textContent = '';
+    parts.forEach(function (part) {
+      if (typeof part === 'string') {
+        flowCaption.appendChild(document.createTextNode(part));
+      } else if (part.person != null) {
+        var who = document.createElement('strong');
+        who.className = 'c-' + colorOf(people[part.person].name);
+        who.textContent = people[part.person].name;
+        flowCaption.appendChild(who);
+      } else {
+        var span = document.createElement('span');
+        if (part.plain) {
+          span.className = 'sum';
+          span.textContent = money.format(part.cents / 100);
+        } else {
+          span.className = part.cents > 0 ? 'in' : part.cents < 0 ? 'out' : '';
+          span.textContent = signedMoney(part.cents);
+        }
+        flowCaption.appendChild(span);
+      }
+    });
+  }
+
+  /* ---------- money flow: transitions ----------
+     Switching tabs replays the arithmetic that turns one option into the
+     other, rather than swapping pictures.
+     Option 1 → 2: in each pair that owes both ways, the smaller amount
+     lifts off as a bubble, travels to the larger one and comes off it.
+     Option 2 → 3: wherever money only passes through someone, that route
+     is lit up, the amount comes off each arrow on it and joins the direct
+     arrow, which is lit up in turn. Going back plays it in reverse.
+     Tapping the chart, or another tab, skips to the end.                  */
+
+  var anim = null;
+  var calm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var COMET = 0.38;   // length of the rolling highlight, as a share of its arrow
+
+  function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function span(p, a, b) { return p <= a ? 0 : p >= b ? 1 : (p - a) / (b - a); }
+  function mix(a, b, t) { return a + (b - a) * t; }
+  function ek(i, j) { return i + ',' + j; }
+
+  function matrixOf(L, grid) {
+    return L.people.map(function (a) {
+      return L.people.map(function (b) { return grid[a.key][b.key]; });
+    });
+  }
+  function copyM(m) { return m.map(function (row) { return row.slice(); }); }
+  function sameM(a, b) {
+    return a.every(function (row, i) { return row.every(function (v, j) { return v === b[i][j]; }); });
+  }
+
+  function mergeSegments(L) {
+    var one = matrixOf(L, L.one), n = one.length, pairs = [];
+    for (var i = 0; i < n; i++) {
+      for (var j = i + 1; j < n; j++) {
+        var x = one[i][j], y = one[j][i];
+        if (!x || !y) { continue; }
+        if (x === y) { pairs.push({ even: true, a: [i, j], b: [j, i], amount: x }); }
+        else if (x < y) { pairs.push({ small: [i, j], big: [j, i], amount: x }); }
+        else { pairs.push({ small: [j, i], big: [i, j], amount: y }); }
+      }
     }
-    var who = document.createElement('strong');
-    who.className = 'c-' + colorOf(person.name);
-    who.textContent = person.name;
-    flowCaption.appendChild(who);
-    flowCaption.appendChild(document.createTextNode(' receives '));
-    flowCaption.appendChild(amount(gets));
-    flowCaption.appendChild(document.createTextNode(' and sends '));
-    flowCaption.appendChild(amount(-gives));
-    flowCaption.appendChild(document.createTextNode(', for a net of '));
-    flowCaption.appendChild(amount(gets - gives));
-    flowCaption.appendChild(document.createTextNode('.'));
+    if (!pairs.length) { return []; }
+    return [{ kind: 'merge', pairs: pairs, before: one, after: matrixOf(L, L.pairs), dur: 1900 }];
+  }
+
+  function findCycle(C) {
+    var n = C.length, state = [], stack = [], found = null;
+    function visit(u) {
+      state[u] = 1;
+      stack.push(u);
+      for (var v = 0; v < n && !found; v++) {
+        if (C[u][v] <= 0) { continue; }
+        if (state[v] === 1) { found = stack.slice(stack.indexOf(v)).concat([v]); }
+        else if (!state[v]) { visit(v); }
+      }
+      stack.pop();
+      state[u] = 2;
+    }
+    for (var s = 0; s < n && !found; s++) { if (!state[s]) { visit(s); } }
+    return found;
+  }
+
+  // Shortest chain of arrows from a to c that isn't the direct arrow.
+  // Strict: only arrows still carrying more than Option 3 keeps on them.
+  function findRoute(C, G, a, c, strict) {
+    var n = C.length, prev = [], seen = [], queue = [a];
+    seen[a] = true;
+    while (queue.length) {
+      var u = queue.shift();
+      for (var v = 0; v < n; v++) {
+        if (seen[v] || (u === a && v === c)) { continue; }
+        if ((strict ? C[u][v] - G[u][v] : C[u][v]) <= 0) { continue; }
+        seen[v] = true;
+        prev[v] = u;
+        if (v === c) {
+          var path = [c];
+          while (path[0] !== a) { path.unshift(prev[path[0]]); }
+          return path;
+        }
+        queue.push(v);
+      }
+    }
+    return null;
+  }
+
+  // The moves that turn Option 2 into Option 3. Circles cancel first;
+  // then each payment Option 3 needs is fed by rerouting money that was
+  // passing through someone else on its way there.
+  function rerouteSegments(L) {
+    var C = matrixOf(L, L.pairs), G = matrixOf(L, L.group), n = C.length;
+    var steps = [], guard = 0, cycle, before, x, k;
+
+    while (guard++ < 40 && (cycle = findCycle(C))) {
+      before = copyM(C);
+      x = Infinity;
+      for (k = 0; k < cycle.length - 1; k++) { x = Math.min(x, C[cycle[k]][cycle[k + 1]]); }
+      for (k = 0; k < cycle.length - 1; k++) { C[cycle[k]][cycle[k + 1]] -= x; }
+      steps.push({ kind: 'cycle', path: cycle, amount: x, before: before, after: copyM(C) });
+    }
+
+    guard = 0;
+    while (guard++ < 60) {
+      var a = -1, c = -1, gap = 0;
+      for (var i = 0; i < n; i++) {
+        for (var j = 0; j < n; j++) {
+          if (G[i][j] - C[i][j] > gap) { gap = G[i][j] - C[i][j]; a = i; c = j; }
+        }
+      }
+      if (a < 0) { break; }
+      var strict = true, path = findRoute(C, G, a, c, true);
+      if (!path) { strict = false; path = findRoute(C, G, a, c, false); }
+      if (!path) { break; }
+      x = gap;
+      for (k = 0; k < path.length - 1; k++) {
+        var u = path[k], v = path[k + 1];
+        x = Math.min(x, strict ? C[u][v] - G[u][v] : C[u][v]);
+      }
+      before = copyM(C);
+      for (k = 0; k < path.length - 1; k++) { C[path[k]][path[k + 1]] -= x; }
+      C[a][c] += x;
+      steps.push({ kind: 'route', path: path, amount: x, before: before, after: copyM(C) });
+    }
+
+    // Anything the moves above couldn't explain just eases into place.
+    if (!sameM(C, G)) { steps.push({ kind: 'morph', before: copyM(C), after: copyM(G) }); }
+
+    var each = steps.length > 3 ? Math.max(1500, 8000 / steps.length) : 2700;
+    steps.forEach(function (s) { s.dur = s.kind === 'morph' ? 900 : each; });
+    return steps;
+  }
+
+  function freshEdge(i, j, amount, label) {
+    return { i: i, j: j, amount: amount, weight: amount, alpha: 1, draw: 1,
+             label: label, pulse: 0, glow: null };
+  }
+
+  function frameFrom(m, showAll) {
+    var F = { edges: {}, bubbles: [] };
+    m.forEach(function (row, i) {
+      row.forEach(function (v, j) { if (v > 0) { F.edges[ek(i, j)] = freshEdge(i, j, v, showAll ? 1 : 0); } });
+    });
+    return F;
+  }
+
+  function minus(cents) { return '\u2212' + money.format(cents / 100); }
+  function plus(cents) { return '+' + money.format(cents / 100); }
+
+  var RENDER = {
+    // The smaller debt in each pair lifts off, travels to the larger one,
+    // and is taken off it.
+    merge: function (seg, p, dir, F, pos) {
+      var lift = span(p, 0, 0.22), fly = ease(span(p, 0.22, 0.68)), sink = span(p, 0.68, 0.9);
+      seg.pairs.forEach(function (pr) {
+        if (pr.even) {
+          var k1 = ek(pr.a[0], pr.a[1]), k2 = ek(pr.b[0], pr.b[1]);
+          var p1 = pos[k1], p2 = pos[k2];
+          var mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+          [[k1, p1], [k2, p2]].forEach(function (one) {
+            var e = F.edges[one[0]], at = one[1];
+            e.label = lift > 0 ? 0 : 1;
+            e.alpha = 1 - 0.5 * lift - 0.5 * fly;
+            e.weight = e.amount * (1 - fly);
+            if (lift > 0 && sink < 1) {
+              F.bubbles.push({ x: mix(at.x, mid.x, fly), y: mix(at.y, mid.y, fly),
+                               text: fly > 0 ? (dir > 0 ? minus(pr.amount) : plus(pr.amount)) : money.format(pr.amount / 100),
+                               cls: fly > 0 ? (dir > 0 ? 'out' : 'in') : '', alpha: 1 - sink,
+                               scale: 1 + 0.15 * Math.sin(Math.PI * lift) - 0.6 * sink });
+            }
+          });
+          return;
+        }
+        var ks = ek(pr.small[0], pr.small[1]), kb = ek(pr.big[0], pr.big[1]);
+        var es = F.edges[ks], eb = F.edges[kb], ps = pos[ks], pb = pos[kb];
+        es.label = lift > 0 ? 0 : 1;
+        es.alpha = 1 - 0.5 * lift - 0.5 * fly;
+        es.weight = es.amount * (1 - fly);
+        eb.label = 1;
+        eb.amount -= pr.amount * ease(sink);
+        eb.weight = eb.amount;
+        eb.pulse = Math.sin(Math.PI * sink);
+        if (lift > 0 && sink < 1) {
+          F.bubbles.push({ x: mix(ps.x, pb.x, fly), y: mix(ps.y, pb.y, fly),
+                           text: fly > 0 ? (dir > 0 ? minus(pr.amount) : plus(pr.amount)) : money.format(pr.amount / 100),
+                           cls: fly > 0 ? (dir > 0 ? 'out' : 'in') : '', alpha: 1 - sink,
+                           scale: 1 + 0.15 * Math.sin(Math.PI * lift) - 0.6 * sink });
+        }
+      });
+    },
+
+    // Light up the roundabout route, take the amount off each arrow on it,
+    // carry it over to the direct arrow, then light that up.
+    route: function (seg, p, dir, F, pos) {
+      var path = seg.path, hops = path.length - 1, x = seg.amount;
+      var dk = ek(path[0], path[hops]);
+      var lit = span(p, 0.02, 0.3);
+      var cut = ease(span(p, 0.3, 0.44)), fly = ease(span(p, 0.44, 0.7));
+      var join = span(p, 0.7, 0.79), done = span(p, 0.8, 0.99);
+      var roll = function (t) { return dir > 0 ? t : 1 - t; };
+      var halo = Math.sin(Math.PI * span(p, 0, 0.56));
+      var head = roll(lit) * (hops + COMET);
+
+      var d = F.edges[dk];
+      var fresh = !d;
+      if (fresh) { d = F.edges[dk] = freshEdge(path[0], path[hops], 0, 0); }
+      var target = pos[dk];
+
+      for (var q = 0; q < hops; q++) {
+        var k = ek(path[q], path[q + 1]), e = F.edges[k], at = pos[k];
+        var start = e.amount;
+        e.label = 1;
+        e.amount = start - x * cut;
+        e.weight = e.amount;
+        e.pulse = Math.sin(Math.PI * cut);
+        if (start - x <= 0) { e.alpha = 1 - fly; e.label = 1 - fly; }
+        e.glow = { tone: 'bad', halo: halo, comet: lit > 0 && lit < 1 ? head - q : null };
+        if (cut > 0 && join === 0) {
+          F.bubbles.push({ x: mix(at.x, target.x, fly), y: mix(at.y, target.y - 24, fly) - 14 * Math.sin(Math.PI * fly),
+                           text: dir > 0 ? minus(x) : plus(x), cls: dir > 0 ? 'out' : 'in', alpha: 1,
+                           scale: 1 + 0.18 * Math.sin(Math.PI * cut) });
+        }
+      }
+
+      if (fresh) { d.draw = fly; }
+      d.label = fresh ? join : 1;
+      d.amount += x * ease(join);
+      d.weight = d.amount;
+      d.pulse = Math.sin(Math.PI * join);
+      d.glow = { tone: 'good', halo: Math.sin(Math.PI * done), comet: done > 0 && done < 1 ? roll(done) * (1 + COMET) : null };
+      if (join > 0 && join < 1) {
+        F.bubbles.push({ x: target.x, y: target.y - 24 * (1 - join), text: dir > 0 ? plus(x) : minus(x),
+                         cls: dir > 0 ? 'in' : 'out', alpha: 1 - join, scale: 1.15 - 0.55 * join });
+      }
+    },
+
+    // Money going round in a circle: light it up and take it off every arrow.
+    cycle: function (seg, p, dir, F, pos) {
+      var path = seg.path, hops = path.length - 1, x = seg.amount;
+      var lit = span(p, 0.02, 0.36), cut = ease(span(p, 0.4, 0.64)), fade = span(p, 0.6, 0.85);
+      var roll = dir > 0 ? lit : 1 - lit;
+      var halo = Math.sin(Math.PI * span(p, 0, 0.85));
+      for (var q = 0; q < hops; q++) {
+        var k = ek(path[q], path[q + 1]), e = F.edges[k], at = pos[k];
+        var start = e.amount;
+        e.label = 1;
+        e.amount = start - x * cut;
+        e.weight = e.amount;
+        e.pulse = Math.sin(Math.PI * cut);
+        if (start - x <= 0) { e.alpha = 1 - fade; e.label = 1 - fade; }
+        e.glow = { tone: 'bad', halo: halo, comet: lit > 0 && lit < 1 ? roll * (hops + COMET) - q : null };
+        if (cut > 0 && fade < 1) {
+          F.bubbles.push({ x: at.x, y: at.y - 22 * cut, text: minus(x), cls: 'out',
+                           alpha: 1 - fade, scale: 1 });
+        }
+      }
+    },
+
+    morph: function (seg, p, dir, F) {
+      var t = ease(p);
+      seg.after.forEach(function (row, i) {
+        row.forEach(function (to, j) {
+          var from = seg.before[i][j], k = ek(i, j);
+          if (!from && !to) { return; }
+          var e = F.edges[k] || (F.edges[k] = freshEdge(i, j, 0, 1));
+          e.label = 1;
+          e.amount = mix(from, to, t);
+          e.weight = e.amount;
+          e.alpha = !from ? t : !to ? 1 - t : 1;
+        });
+      });
+    }
+  };
+
+  function names(list) {
+    var parts = [];
+    list.forEach(function (i, n) {
+      if (n) { parts.push(n === list.length - 1 ? ' and ' : ', '); }
+      parts.push({ person: i });
+    });
+    return parts;
+  }
+
+  function chain(path) {
+    var parts = [];
+    path.forEach(function (i, n) {
+      if (n) { parts.push(' \u2192 '); }
+      parts.push({ person: i });
+    });
+    return parts;
+  }
+
+  function tellStep(seg, dir, people) {
+    var x = { cents: seg.amount, plain: true };
+    var parts;
+    if (seg.kind === 'merge') {
+      parts = [dir > 0
+        ? 'Where two people owe each other, the smaller amount comes off the larger.'
+        : 'Each pair split back into what both sides covered.'];
+    } else if (seg.kind === 'route') {
+      var a = seg.path[0], c = seg.path[seg.path.length - 1], middle = seg.path.slice(1, -1);
+      parts = dir > 0
+        ? chain(seg.path).concat([': ']).concat(names(middle))
+            .concat([middle.length > 1 ? ' only pass ' : ' only passes ', x, ' along, so ',
+                     { person: a }, ' pays ', { person: c }, ' directly.'])
+        : ['Sending ', x, ' from ', { person: a }, ' back through ']
+            .concat(names(middle)).concat([' to ', { person: c }, '.']);
+    } else if (seg.kind === 'cycle') {
+      parts = dir > 0
+        ? chain(seg.path).concat([' goes round in a circle, so ', x, ' cancels out.'])
+        : ['Putting the ', x, ' circle back.'];
+    } else {
+      parts = [dir > 0 ? 'Settling what\u2019s left into the shortest list.' : 'Undoing the last tidy-up.'];
+    }
+    tell(parts, people);
+  }
+
+  function drawFrame(F) {
+    var A = anim, geo = A.geo;
+    A.edgeLayer.textContent = '';
+    A.labelLayer.textContent = '';
+    A.fxLayer.textContent = '';
+
+    Object.keys(F.edges).forEach(function (k) {
+      var e = F.edges[k];
+      if (e.alpha <= 0.01 || e.draw <= 0) { return; }
+      var shape = A.shapes[k] || (A.shapes[k] = makeEdge(geo, e.i, e.j, 0));
+      var arrow = arrowPath(geo, shape, e.weight);
+      var tone = 'c-' + colorOf(A.people[e.i].name);
+      var g = sv('g', { 'class': 'edge ' + tone, opacity: e.alpha.toFixed(3) }, A.edgeLayer);
+
+      var glow = e.glow, cometOn = glow && glow.comet != null && glow.comet > 0 && glow.comet - COMET < 1;
+      if (glow && glow.halo > 0.01) {
+        sv('path', { d: arrow.full, 'class': 'halo ' + glow.tone,
+                     'stroke-width': (arrow.width + 10).toFixed(1), opacity: (0.3 * glow.halo).toFixed(3) }, g);
+      }
+      if (cometOn) {
+        sv('path', { d: arrow.full, 'class': 'halo ' + glow.tone, pathLength: 1,
+                     'stroke-dasharray': COMET + ' 3', 'stroke-dashoffset': (COMET - glow.comet).toFixed(3),
+                     'stroke-width': (arrow.width + 9).toFixed(1), opacity: 0.6 }, g);
+      }
+
+      var line = sv('path', { d: arrow.d, 'stroke-width': arrow.width.toFixed(2) }, g);
+      if (e.draw < 1) {
+        line.setAttribute('pathLength', 1);
+        line.setAttribute('stroke-dasharray', e.draw.toFixed(3) + ' 2');
+      }
+      var headIn = e.draw < 1 ? span(e.draw, 0.85, 1) : 1;
+      if (headIn > 0) { sv('polygon', { points: arrow.points, opacity: headIn.toFixed(3) }, g); }
+
+      if (cometOn) {
+        var core = COMET * 0.55;
+        sv('path', { d: arrow.full, 'class': 'comet', pathLength: 1,
+                     'stroke-dasharray': core.toFixed(3) + ' 3', 'stroke-dashoffset': (core - glow.comet).toFixed(3),
+                     'stroke-width': Math.max(1.2, arrow.width * 0.5).toFixed(2) }, g);
+      }
+
+      var at = A.pos[k];
+      if (e.label <= 0.01 || !at) { return; }
+      var text = money.format(Math.max(0, Math.round(e.amount)) / 100);
+      var w = text.length * 7.3 + 10, s = 1 + 0.14 * e.pulse;
+      var tag = sv('g', {
+        'class': 'edge ' + tone, opacity: (e.label * Math.min(1, e.alpha * 1.5)).toFixed(3),
+        transform: 'translate(' + at.x.toFixed(1) + ' ' + at.y.toFixed(1) + ') scale(' + s.toFixed(3) + ')'
+      }, A.labelLayer);
+      var label = sv('g', { 'class': 'edge__label' }, tag);
+      sv('rect', { x: (-w / 2).toFixed(1), y: -10, width: w.toFixed(1), height: 20, rx: 6 }, label);
+      sv('text', { x: 0, y: 4, 'text-anchor': 'middle' }, label).textContent = text;
+    });
+
+    F.bubbles.forEach(function (b) {
+      if (b.alpha <= 0.01 || b.scale <= 0.05) { return; }
+      var w = b.text.length * 7.3 + 14;
+      var g = sv('g', {
+        'class': 'bubble' + (b.cls ? ' ' + b.cls : ''), opacity: b.alpha.toFixed(3),
+        transform: 'translate(' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + ') scale(' + b.scale.toFixed(3) + ')'
+      }, A.fxLayer);
+      sv('rect', { x: (-w / 2).toFixed(1), y: -11, width: w.toFixed(1), height: 22, rx: 11 }, g);
+      sv('text', { x: 0, y: 4, 'text-anchor': 'middle' }, g).textContent = b.text;
+    });
+  }
+
+  function animateFlow(from, to) {
+    var L = lastLayers;
+    if (!L || from === to || (calm && calm.matches)) { return false; }
+    var lo = Math.min(from, to), hi = Math.max(from, to);
+    var segs = [];
+    if (lo === 0) { segs = segs.concat(mergeSegments(L)); }
+    if (hi === 2) { segs = segs.concat(rerouteSegments(L)); }
+    if (!segs.length) { return false; }
+
+    var people = L.people, geo = flowGeometry(L), layers = flowLayers(L);
+
+    // Amounts sit where they will sit on the option being switched to, so
+    // nothing jumps at the end; arrows that only exist along the way fit
+    // in around them.
+    var taken = nodeBoxes(geo);
+    var landing = edgesFor(L, geo, layers[to].grid, -1, {});
+    placeLabels(landing, taken);
+    var pos = {}, extra = {};
+    landing.forEach(function (e) { pos[ek(e.from, e.to)] = e.label; });
+    segs.forEach(function (s) {
+      [s.before, s.after].forEach(function (m) {
+        m.forEach(function (row, i) {
+          row.forEach(function (v, j) {
+            var k = ek(i, j);
+            if (v > 0 && !pos[k]) { extra[k] = Math.max(extra[k] || 0, v); }
+          });
+        });
+      });
+    });
+    var others = Object.keys(extra).map(function (k) {
+      var ij = k.split(',');
+      return makeEdge(geo, Number(ij[0]), Number(ij[1]), extra[k]);
+    });
+    placeLabels(others, taken);
+    others.forEach(function (e) { pos[ek(e.from, e.to)] = e.label; });
+
+    // Arrows that aren't part of the move keep their amounts only if both
+    // options are calm enough to show every amount.
+    function calmLayer(grid) {
+      var list = edgesFor(L, geo, grid, -1, {});
+      return list.length <= 16 && placeLabels(list, nodeBoxes(geo));
+    }
+    var showAll = calmLayer(layers[from].grid) && calmLayer(layers[to].grid);
+
+    var root = flowRoot(geo, 'Money flow, changing from ' + layers[from].name + ' to ' + layers[to].name);
+    root.setAttribute('class', 'all-labels is-playing');
+    var edgeLayer = sv('g', {}, root);
+    var labelLayer = sv('g', {}, root);
+    var nodeLayer = sv('g', {}, root);
+    var fxLayer = sv('g', {}, root);
+    drawNodes(L, geo, -1, {}, nodeLayer);
+
+    var dir = to > from ? 1 : -1;
+    var order = dir > 0 ? segs : segs.slice().reverse();
+    var total = order.reduce(function (sum, s) { return sum + s.dur; }, 0);
+
+    anim = { geo: geo, people: people, pos: pos, shapes: {}, raf: 0, start: 0, seg: -1,
+             edgeLayer: edgeLayer, labelLayer: labelLayer, fxLayer: fxLayer };
+
+    function tick(now) {
+      if (!anim) { return; }
+      if (!anim.start) { anim.start = now; }
+      var t = now - anim.start;
+      if (t >= total) { finishAnim(); return; }
+      var acc = 0, idx = 0;
+      while (idx < order.length - 1 && t >= acc + order[idx].dur) { acc += order[idx].dur; idx++; }
+      var seg = order[idx];
+      var local = Math.min(1, (t - acc) / seg.dur);
+      var p = dir > 0 ? local : 1 - local;
+      if (idx !== anim.seg) { anim.seg = idx; tellStep(seg, dir, people); }
+      var F = frameFrom(seg.before, showAll);
+      RENDER[seg.kind](seg, p, dir, F, pos);
+      drawFrame(F);
+      anim.raf = requestAnimationFrame(tick);
+    }
+    tick(performance.now());
+    return true;
+  }
+
+  function stopAnim() {
+    if (!anim) { return; }
+    cancelAnimationFrame(anim.raf);
+    anim = null;
+  }
+
+  function finishAnim() {
+    if (!anim) { return; }
+    stopAnim();
+    drawFlow();
+  }
+
+  function selectLayer(i) {
+    finishAnim();
+    var from = flowState.layer;
+    flowState.layer = i;
+    paintTabs();
+    flowTabs.querySelector('[aria-selected="true"]').focus();
+    if (i !== from && !animateFlow(from, i)) { drawFlow(); }
   }
 
   flowTabs.addEventListener('click', function (event) {
     var tab = event.target.closest ? event.target.closest('.tab') : null;
     if (!tab) { return; }
-    flowState.layer = Number(tab.dataset.layer);
-    paintFlow();
-    flowTabs.querySelector('[aria-selected="true"]').focus();
+    selectLayer(Number(tab.dataset.layer));
   });
 
   flowTabs.addEventListener('keydown', function (event) {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') { return; }
     event.preventDefault();
-    flowState.layer = (flowState.layer + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
-    paintFlow();
-    flowTabs.querySelector('[aria-selected="true"]').focus();
+    selectLayer((flowState.layer + (event.key === 'ArrowRight' ? 1 : 2)) % 3);
   });
 
   function pickNode(target) {
@@ -2134,12 +2684,16 @@ footer {
   }
 
   // Tapping a person isolates their arrows; tapping them again, or empty
-  // space, brings everyone back.
-  flowCanvas.addEventListener('click', function (event) { pickNode(event.target); });
+  // space, brings everyone back. While a transition plays, a tap skips it.
+  flowCanvas.addEventListener('click', function (event) {
+    if (anim) { finishAnim(); return; }
+    pickNode(event.target);
+  });
   flowCanvas.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter' && event.key !== ' ') { return; }
     if (!event.target.closest || !event.target.closest('.node')) { return; }
     event.preventDefault();
+    if (anim) { finishAnim(); return; }
     pickNode(event.target);
   });
 
