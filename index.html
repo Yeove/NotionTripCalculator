@@ -118,16 +118,6 @@
     --shadow-field: inset 0 1px 2px rgba(0, 0, 0, .22);
   }
 
-  .c-gray   { --tint: #2F2F2F; --tone: #9B9B9B; }
-  .c-brown  { --tint: #4A3228; --tone: #BA856F; }
-  .c-orange { --tint: #5C3B23; --tone: #C77D48; }
-  .c-yellow { --tint: #564328; --tone: #CA994B; }
-  .c-green  { --tint: #243D30; --tone: #529E72; }
-  .c-blue   { --tint: #143A4E; --tone: #5E87C9; }
-  .c-purple { --tint: #3C2D49; --tone: #9D68D3; }
-  .c-pink   { --tint: #4E2C3C; --tone: #D15796; }
-  .c-red    { --tint: #522E2A; --tone: #DF5452; }
-
   .menu__swatch { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
 }
 
@@ -393,6 +383,20 @@ input:focus {
 .c-pink    { --tint: #FAF1F5; --tone: #B35488; }
 .c-red     { --tint: #FDEBEC; --tone: #C4554D; }
 
+/* Dark versions have to come after the light ones: with equal weight the
+   later rule wins, so placed earlier they were silently overridden. */
+@media (prefers-color-scheme: dark) {
+  .c-gray   { --tint: #2F2F2F; --tone: #9B9B9B; }
+  .c-brown  { --tint: #4A3228; --tone: #BA856F; }
+  .c-orange { --tint: #5C3B23; --tone: #C77D48; }
+  .c-yellow { --tint: #564328; --tone: #CA994B; }
+  .c-green  { --tint: #243D30; --tone: #529E72; }
+  .c-blue   { --tint: #143A4E; --tone: #5E87C9; }
+  .c-purple { --tint: #3C2D49; --tone: #9D68D3; }
+  .c-pink   { --tint: #4E2C3C; --tone: #D15796; }
+  .c-red    { --tint: #522E2A; --tone: #DF5452; }
+}
+
 .dot {
   display: inline-block;
   width: 8px;
@@ -451,6 +455,45 @@ input:focus {
 }
 .menu__name { flex: 1 1 auto; }
 .menu__check { font-weight: 700; }
+
+/* Rename lives above the colours. The current name is never inside the box:
+   it is a separate layer behind the typing, so it can't be edited or typed
+   into. Focusing fades it to grey; the first keystroke hides it. */
+.menu__fieldwrap {
+  position: relative;
+  margin: 0 4px 12px;
+}
+.menu__field {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  font-size: var(--size-body);   /* 16px, so phones don't zoom on focus */
+  font-weight: 600;
+}
+.menu__ghost {
+  position: absolute;
+  left: 13px;                    /* the field's padding plus its border */
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;          /* clicks fall through to the box */
+  user-select: none;
+  font-size: var(--size-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+.menu__fieldwrap:focus-within .menu__ghost { color: var(--ink-faint); }
+.menu__fieldwrap.has-text .menu__ghost { visibility: hidden; }
+.menu__note {
+  margin: -6px 10px 12px;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--danger);
+}
 
 /* ---- the debt grid ---- */
 
@@ -661,6 +704,65 @@ button.btn:active { transform: translateY(1px); }
 }
 .footnote { margin: var(--gap-head) 0 0; font-size: var(--size-meta); font-weight: 500; color: var(--ink-soft); }
 
+/* ---- money flow ----
+   Everyone sits in a fixed ring; switching layers changes only the arrows.
+   Each person's net is printed under their name and never changes, which
+   is the whole argument for why the shorter list is fair. */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 var(--gap-head);
+  border-radius: 12px;
+  background: var(--rule);
+}
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: var(--size-body);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+.tab small {
+  display: block;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-faint);
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+}
+.tab[aria-selected="true"] small { color: var(--blue); }
+
+.flow svg { display: block; width: 100%; height: auto; overflow: visible; }
+.flow .edge path { fill: none; stroke: var(--tone); stroke-linecap: round; }
+.flow .edge polygon { fill: var(--tone); }
+.flow .edge.c-default path { stroke: var(--blue); }
+.flow .edge.c-default polygon { fill: var(--blue); }
+.flow .edge__label rect { fill: var(--card); stroke: var(--field-line); }
+.flow .edge__label text {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+.flow .node circle { fill: var(--tint); stroke: var(--tone); stroke-width: 2; }
+.flow .node .initial { font-family: var(--sans); font-weight: 700; fill: var(--tone); }
+.flow .node .name { font-family: var(--sans); font-weight: 700; fill: var(--tone); }
+.flow .node .net { font-family: var(--mono); font-weight: 700; fill: var(--ink-faint); }
+.flow .node .net.in  { fill: var(--owed); }
+.flow .node .net.out { fill: var(--danger); }
 /* An empty panel names what is missing and what to do about it. */
 .empty { margin: 0; font-weight: 500; color: var(--ink-soft); }
 .empty strong { display: block; font-weight: 700; color: var(--ink); }
@@ -749,6 +851,12 @@ footer {
     </div>
   </section>
 
+  <section class="panel" id="flow" hidden>
+    <h2>Money flow</h2>
+    <div class="tabs" role="tablist" aria-label="Layer" id="flow-tabs"></div>
+    <div class="flow" id="flow-canvas"></div>
+  </section>
+
   <section class="panel">
     <h2>Payments</h2>
     <div id="transfers">
@@ -780,12 +888,17 @@ footer {
   var footnote = document.getElementById('footnote');
   var copyBtn = document.getElementById('copy');
   var copyWrap = document.getElementById('copy-wrap');
+  var flowPanel = document.getElementById('flow');
+  var flowTabs = document.getElementById('flow-tabs');
+  var flowCanvas = document.getElementById('flow-canvas');
+  var flowState = { layer: 0 };
   var bulk = document.getElementById('bulk');
   var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
   var roster = [];   // [{ name: 'Sam', key: 'sam', color: 'blue' }] — fixed once the grid is built
   var cells = {};    // 'payerKey|owerKey' -> whatever was typed in that box
   var lastPayments = [];
+  var lastLayers = null;   // snapshot taken at Settle up, so a recolour repaints the same numbers
 
   // Notion's own set, in Notion's own order, so a trip can be colour-matched
   // to the page it was copied from.
@@ -803,6 +916,10 @@ footer {
   ];
 
   /* ---------- pure logic ---------- */
+
+  // 1.005 * 100 is 100.49999… in floating point, so round through a fixed
+  // string first: 1.005 becomes 101 cents, as written.
+  function toCents(value) { return Math.round(Number((value * 100).toFixed(6))); }
 
   function key(name) { return name.trim().toLowerCase().replace(/\s+/g, ' '); }
 
@@ -845,12 +962,14 @@ footer {
     return order.map(function (k) { return seen[k]; });
   }
 
-  // Greedy largest-debtor-to-largest-creditor. Nets sum to zero by construction.
-  function minTransfers(nets) {
-    var creditors = nets.filter(function (p) { return p.cents > 0; })
+  // Settles one group of people whose balances sum to zero: largest debtor
+  // pays largest creditor. Each step clears at least one person, so a group
+  // of k people never needs more than k - 1 payments.
+  function settleGroup(group) {
+    var creditors = group.filter(function (p) { return p.cents > 0; })
       .map(function (p) { return { name: p.name, amount: p.cents }; })
       .sort(function (a, b) { return b.amount - a.amount; });
-    var debtors = nets.filter(function (p) { return p.cents < 0; })
+    var debtors = group.filter(function (p) { return p.cents < 0; })
       .map(function (p) { return { name: p.name, amount: -p.cents }; })
       .sort(function (a, b) { return b.amount - a.amount; });
 
@@ -866,7 +985,60 @@ footer {
       if (debtors[i].amount === 0) { i++; }
       if (creditors[j].amount === 0) { j++; }
     }
-    return { payments: payments, floor: Math.max(creditors.length, debtors.length) };
+    return payments;
+  }
+
+  // The true minimum. Everyone with a non-zero balance needs at least one
+  // payment, and every set of people whose balances cancel out exactly among
+  // themselves can settle internally and save one. So: split everyone into
+  // as many exactly-cancelling groups as possible, then settle each group.
+  // With the 12-person cap that is at most 4,096 subsets to check.
+  function minTransfers(nets) {
+    var live = nets.filter(function (p) { return p.cents !== 0; });
+    var n = live.length;
+    var total = live.reduce(function (sum, p) { return sum + p.cents; }, 0);
+
+    var groups;
+    if (n === 0) {
+      groups = [];
+    } else if (n > 16 || total !== 0) {
+      groups = [live];   // out of range, or nets that don't balance: one group
+    } else {
+      var size = 1 << n;
+      var sum = new Array(size), best = new Array(size);
+      sum[0] = 0; best[0] = 0;
+      for (var m = 1; m < size; m++) {
+        var low = m & -m;
+        sum[m] = sum[m ^ low] + live[31 - Math.clz32(low)].cents;
+        var most = 0;
+        for (var b = 0; b < n; b++) {
+          if ((m & (1 << b)) && best[m ^ (1 << b)] > most) { most = best[m ^ (1 << b)]; }
+        }
+        best[m] = most + (sum[m] === 0 ? 1 : 0);
+      }
+
+      // Walk back down from everyone, cutting a group off each time the
+      // remaining people's balances come to exactly zero.
+      groups = [];
+      var at = size - 1, cut = at;
+      while (at) {
+        var need = best[at] - (sum[at] === 0 ? 1 : 0);
+        for (var c = 0; c < n; c++) {
+          if ((at & (1 << c)) && best[at ^ (1 << c)] === need) { at ^= 1 << c; break; }
+        }
+        if (sum[at] === 0) {
+          var members = [];
+          for (var e = 0; e < n; e++) { if ((cut ^ at) & (1 << e)) { members.push(live[e]); } }
+          groups.push(members);
+          cut = at;
+        }
+      }
+    }
+
+    var payments = [];
+    groups.forEach(function (group) { payments = payments.concat(settleGroup(group)); });
+    payments.sort(function (a, b) { return b.amount - a.amount || a.from.localeCompare(b.from); });
+    return { payments: payments };
   }
 
   // A box accepts a plain amount or a running total: 20 + 15 + 3.50
@@ -881,7 +1053,7 @@ footer {
       var value = Number(part);
       if (!isFinite(value)) { ok = false; return; }
       if (value < 0) { negative = true; }
-      total += Math.round(value * 100);
+      total += toCents(value);
     });
     return { ok: ok, cents: total, parts: parts.length, negative: negative };
   }
@@ -1075,7 +1247,7 @@ footer {
       pick.textContent = person.name;
       pick.setAttribute('aria-haspopup', 'true');
       pick.setAttribute('aria-expanded', 'false');
-      pick.title = 'Pick a colour for ' + person.name;
+      pick.title = 'Rename or recolour ' + person.name;
       chip.appendChild(pick);
 
       var drop = document.createElement('button');
@@ -1311,9 +1483,12 @@ footer {
 
   var openPicker = null;
 
-  function closePicker(restoreFocus) {
+  // Closing is saving: clicking away, Enter, picking a colour or opening
+  // another chip all keep a new name. Only Escape throws it away.
+  function closePicker(restoreFocus, discard) {
     if (!openPicker) { return; }
     var anchor = openPicker.anchor;
+    var commit = discard ? null : openPicker.commit;
     openPicker.el.parentNode.removeChild(openPicker.el);
     openPicker = null;
     document.removeEventListener('mousedown', outsidePicker, true);
@@ -1323,9 +1498,22 @@ footer {
       anchor.setAttribute('aria-expanded', 'false');
       if (restoreFocus) { anchor.focus(); }
     }
+    if (commit) { commit(); }
   }
 
-  function windowClosePicker() { closePicker(false); }
+  // A phone's keyboard resizes and scrolls the window when the name box takes
+  // focus, so while typing the popup follows its chip instead of closing.
+  // Scrolling the popup's own list shouldn't close it either.
+  function windowClosePicker(event) {
+    if (!openPicker) { return; }
+    if (event && event.type === 'scroll' && openPicker.el.contains(event.target)) { return; }
+    var active = document.activeElement;
+    if (active && active.classList.contains('menu__field') && openPicker.el.contains(active)) {
+      placePicker(openPicker.el, openPicker.anchor);
+      return;
+    }
+    closePicker(false);
+  }
 
   function outsidePicker(event) {
     if (!openPicker) { return; }
@@ -1346,18 +1534,143 @@ footer {
     el.style.top = Math.round(top) + 'px';
   }
 
+  function cleanName(raw) {
+    // Same rules as adding someone: no separators, one space at a time, 40 max.
+    return String(raw || '').replace(/[|,;\t\r\n]/g, ' ').trim().replace(/\s+/g, ' ').slice(0, 40);
+  }
+
+  function clashWith(person, name) {
+    var k = key(name), hit = null;
+    roster.forEach(function (one) { if (one !== person && one.key === k) { hit = one; } });
+    return hit;
+  }
+
+  function renamePerson(person, raw) {
+    var name = cleanName(raw);
+    if (!name || name === person.name) { return false; }
+
+    var taken = clashWith(person, name);
+    if (taken) {
+      say(rosterError, 'There is already a ' + taken.name + ' on the trip, so ' +
+        person.name + ' kept their name.');
+      return false;
+    }
+
+    var oldKey = person.key, newKey = key(name);
+
+    // Every box is filed under both people's keys, so move this person's over.
+    if (newKey !== oldKey) {
+      var moved = {};
+      Object.keys(cells).forEach(function (pair) {
+        var ends = pair.split('|');
+        moved[pairKey(ends[0] === oldKey ? newKey : ends[0],
+                      ends[1] === oldKey ? newKey : ends[1])] = cells[pair];
+      });
+      cells = moved;
+    }
+
+    person.name = name;
+    person.key = newKey;
+
+    // Results already on screen keep their numbers; only the label changes.
+    function swapName(old) { return key(old) === oldKey ? name : old; }
+    lastPayments.forEach(function (pay) { pay.from = swapName(pay.from); pay.to = swapName(pay.to); });
+    if (lastLayers) {
+      lastLayers.people.forEach(function (one) { one.name = swapName(one.name); });
+    }
+
+    // Relabel the chip in place rather than redrawing the row, so a click
+    // that is already on its way to another chip still lands.
+    Array.prototype.forEach.call(people.querySelectorAll('[data-person]'), function (node) {
+      if (node.dataset.person !== oldKey) { return; }
+      node.dataset.person = newKey;
+      if (node.classList.contains('chip__name')) {
+        node.textContent = name;
+        node.title = 'Rename or recolour ' + name;
+      } else {
+        node.setAttribute('aria-label', 'Remove ' + name + ' from the trip');
+      }
+    });
+
+    rosterError.hidden = true;
+    buildGrid();
+    refresh();
+    if (lastPayments.length) { paintPayments(); }
+    if (lastLayers) { paintFlow(); }
+    return true;
+  }
+
   function openColorPicker(person, anchor) {
     closePicker(false);
 
     var el = document.createElement('div');
     el.className = 'menu';
-    el.setAttribute('role', 'menu');
-    el.setAttribute('aria-label', 'Colour for ' + person.name);
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Edit ' + person.name);
+
+    var nameHead = document.createElement('p');
+    nameHead.className = 'menu__label';
+    nameHead.id = 'menu-name-label';
+    nameHead.textContent = 'Name';
+    el.appendChild(nameHead);
+
+    var fieldWrap = document.createElement('div');
+    fieldWrap.className = 'menu__fieldwrap';
+
+    var field = document.createElement('input');
+    field.type = 'text';
+    field.className = 'menu__field';
+    field.value = '';
+    field.maxLength = 40;
+    field.setAttribute('autocomplete', 'off');
+    field.setAttribute('spellcheck', 'false');
+    field.setAttribute('aria-labelledby', 'menu-name-label');
+    field.setAttribute('aria-describedby', 'menu-name-ghost');
+
+    var ghost = document.createElement('span');
+    ghost.className = 'menu__ghost';
+    ghost.id = 'menu-name-ghost';
+    ghost.textContent = person.name;
+
+    fieldWrap.appendChild(field);
+    fieldWrap.appendChild(ghost);
+    el.appendChild(fieldWrap);
+
+    var clash = document.createElement('p');
+    clash.className = 'menu__note';
+    clash.hidden = true;
+    el.appendChild(clash);
+
+    field.addEventListener('input', function () {
+      fieldWrap.classList.toggle('has-text', field.value !== '');
+      var taken = clashWith(person, cleanName(field.value));
+      clash.textContent = taken ? 'There is already a ' + taken.name + ' on the trip.' : '';
+      clash.hidden = !taken;
+    });
+    field.addEventListener('blur', function () {
+      // Spaces alone don't count as a name; let the current one show again.
+      if (!cleanName(field.value)) {
+        field.value = '';
+        fieldWrap.classList.remove('has-text');
+        clash.hidden = true;
+      }
+    });
+    field.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        closePicker(true);
+      }
+    });
 
     var heading = document.createElement('p');
     heading.className = 'menu__label';
     heading.textContent = 'Colors';
     el.appendChild(heading);
+
+    var list = document.createElement('div');
+    list.setAttribute('role', 'menu');
+    list.setAttribute('aria-label', 'Colour');
+    el.appendChild(list);
 
     var current = person.color || 'default';
     var focusMe = null;
@@ -1394,21 +1707,23 @@ footer {
         // Only repaint a list that is actually on screen; an empty panel
         // is showing its own message.
         if (lastPayments.length) { paintPayments(); }
+        if (lastLayers) { paintFlow(); }
         var back = people.querySelector('.chip__name[data-person="' + person.key + '"]');
         if (back) { back.focus(); }
       });
 
       if (picked) { focusMe = item; }
-      el.appendChild(item);
+      list.appendChild(item);
     });
 
     el.addEventListener('keydown', function (event) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closePicker(true);
+        closePicker(true, true);
         return;
       }
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') { return; }
+      if (event.target === field && event.key === 'ArrowUp') { return; }
       event.preventDefault();
       var items = Array.prototype.slice.call(el.querySelectorAll('.menu__item'));
       var at = items.indexOf(document.activeElement);
@@ -1419,7 +1734,8 @@ footer {
     document.body.appendChild(el);
     placePicker(el, anchor);
     anchor.setAttribute('aria-expanded', 'true');
-    openPicker = { el: el, anchor: anchor, key: person.key };
+    openPicker = { el: el, anchor: anchor, key: person.key,
+                   commit: function () { renamePerson(person, field.value); } };
 
     (focusMe || el.querySelector('.menu__item')).focus();
 
@@ -1445,6 +1761,8 @@ footer {
 
   function fail(message) {
     say(error, message);
+    lastLayers = null;
+    paintFlow();
     showEmpty('Nothing to settle yet',
       'Fill in the amounts above, then press Settle up to see who sends money to who.');
   }
@@ -1480,6 +1798,347 @@ footer {
     });
   }
 
+  /* ---------- how it adds up ----------
+     Layer 1: each pair cancelled against itself. Where two people covered
+     each other, the smaller amount comes off the larger, so each pair ends
+     up pointing one way. Layer 2: the whole group cancelled together —
+     the payments list above. Both leave everyone on the same net.          */
+
+  function blankGrid(people) {
+    var out = {};
+    people.forEach(function (a) {
+      out[a.key] = {};
+      people.forEach(function (b) { out[a.key][b.key] = 0; });
+    });
+    return out;
+  }
+
+  function computeLayers(payments) {
+    var people = roster.map(function (p) { return { name: p.name, key: p.key }; });
+
+    // Layer 1 is every debt exactly as entered, both directions kept and
+    // nothing cancelled: one[from][to] is what `from` owes `to`.
+    var one = blankGrid(people);
+    var oneCount = 0;
+    debts().forEach(function (line) {
+      var from = key(line.owes), to = key(line.paid);
+      if (!one[from][to]) { oneCount++; }
+      one[from][to] += line.cents;
+    });
+
+    // Layer 2 combines each pair's two directions into one amount.
+    var pairs = blankGrid(people);
+    var pairCount = 0;
+    people.forEach(function (a, i) {
+      people.forEach(function (b, j) {
+        if (j <= i) { return; }
+        var diff = one[a.key][b.key] - one[b.key][a.key];
+        if (diff > 0) { pairs[a.key][b.key] = diff; pairCount++; }
+        else if (diff < 0) { pairs[b.key][a.key] = -diff; pairCount++; }
+      });
+    });
+
+    var group = blankGrid(people);
+    payments.forEach(function (pay) { group[key(pay.from)][key(pay.to)] += pay.amount; });
+
+    return { people: people, one: one, pairs: pairs, group: group,
+             oneCount: oneCount, pairCount: pairCount, groupCount: payments.length };
+  }
+
+  /* ---------- money flow ---------- */
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function sv(tag, attrs, parent) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (name) { node.setAttribute(name, attrs[name]); });
+    if (parent) { parent.appendChild(node); }
+    return node;
+  }
+
+  function flowLayers(L) {
+    return [
+      { name: 'Layer 1', grid: L.one, count: L.oneCount },
+      { name: 'Layer 2', grid: L.pairs, count: L.pairCount },
+      { name: 'Layer 3', grid: L.group, count: L.groupCount }
+    ];
+  }
+
+  function short(name, max) {
+    return name.length > max ? name.slice(0, max - 1) + '\u2026' : name;
+  }
+
+  function payWord(n) { return n + (n === 1 ? ' payment' : ' payments'); }
+
+  function signedMoney(cents) {
+    return cents ? (cents > 0 ? '+' : '\u2212') + money.format(Math.abs(cents) / 100) : money.format(0);
+  }
+
+  // Every arrow bows to the right of its direction of travel, so the two
+  // directions between a pair never sit on top of each other.
+  function bowOf(A, B) {
+    var dx = B.x - A.x, dy = B.y - A.y, d = Math.sqrt(dx * dx + dy * dy);
+    var px = -dy / d, py = dx / d;
+    var bend = Math.min(56, d * 0.17);
+    var cx = (A.x + B.x) / 2 + px * bend * 2, cy = (A.y + B.y) / 2 + py * bend * 2;
+    return { cx: cx, cy: cy, apex: { x: (A.x + 2 * cx + B.x) / 4, y: (A.y + 2 * cy + B.y) / 4 } };
+  }
+
+  function paintFlow() {
+    if (!lastLayers) { flowPanel.hidden = true; return; }
+    var layers = flowLayers(lastLayers);
+
+    flowTabs.textContent = '';
+    layers.forEach(function (layer, i) {
+      var tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'tab';
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', i === flowState.layer ? 'true' : 'false');
+      tab.tabIndex = i === flowState.layer ? 0 : -1;
+      tab.dataset.layer = i;
+      tab.appendChild(document.createTextNode(layer.name));
+      var small = document.createElement('small');
+      small.textContent = payWord(layer.count);
+      tab.appendChild(small);
+      flowTabs.appendChild(tab);
+    });
+
+    flowPanel.hidden = false;   // has to be visible before it can be measured
+    drawFlow();
+  }
+
+  function drawFlow() {
+    var L = lastLayers;
+    if (!L) { return; }
+    var people = L.people, n = people.length;
+    var layer = flowLayers(L)[flowState.layer];
+    var grid = layer.grid;
+
+    var net = people.map(function (p) {
+      var sum = 0;
+      people.forEach(function (q) { sum += L.one[q.key][p.key] - L.one[p.key][q.key]; });
+      return sum;
+    });
+
+    // Drawn at the card's real pixel width, so text stays its true size on
+    // a phone instead of being scaled down with the picture.
+    var W = Math.round(flowCanvas.clientWidth) || 600;
+    var narrow = W < 440;
+    var nodeR = narrow ? 17 : 23;
+    var lineH = narrow ? 15 : 17;
+    var nameSize = narrow ? 12 : 14, netSize = narrow ? 11 : 12;
+    var nameMax = narrow ? 10 : 16;
+    var cx = W / 2;
+
+    var angles = people.map(function (p, i) {
+      return n === 2 ? Math.PI * i : -Math.PI / 2 + (2 * Math.PI * i) / n;
+    });
+
+    // The ring is as big as it can be while every name and net still fits
+    // inside the card.
+    var R = narrow ? 125 : 175;
+    angles.forEach(function (a, i) {
+      var ox = Math.cos(a);
+      var wide = Math.max(short(people[i].name, nameMax).length * nameSize * 0.62,
+                          signedMoney(net[i]).length * netSize * 0.62);
+      var room;
+      if (ox > 0.35) { room = (W - 4 - cx - nodeR - 9 - wide) / ox; }
+      else if (ox < -0.35) { room = (cx - 4 - nodeR - 9 - wide) / -ox; }
+      else { room = (cx - 4 - Math.max(wide / 2, nodeR)) / Math.max(Math.abs(ox), 0.01); }
+      R = Math.min(R, room);
+    });
+    R = Math.max(40, R);
+
+    var spots = angles.map(function (a) {
+      return { x: cx + R * Math.cos(a), y: R * Math.sin(a), a: a };
+    });
+
+    // Height comes from what is actually drawn: every person with their
+    // name and net, plus every arrow on all three layers, so it stays put
+    // when switching tabs and nothing is clipped.
+    var high = Infinity, low = -Infinity;
+    spots.forEach(function (spot) {
+      var oy = Math.sin(spot.a);
+      var above = oy < -0.35 ? nodeR + 9 + lineH * 2 : oy > 0.35 ? nodeR : Math.max(nodeR, lineH);
+      var below = oy > 0.35 ? nodeR + 9 + lineH * 2 : oy < -0.35 ? nodeR : Math.max(nodeR, lineH);
+      high = Math.min(high, spot.y - above);
+      low = Math.max(low, spot.y + below);
+    });
+    flowLayers(L).forEach(function (l) {
+      people.forEach(function (a, i) {
+        people.forEach(function (b, j) {
+          if (i === j || !l.grid[a.key][b.key]) { return; }
+          var apex = bowOf(spots[i], spots[j]).apex;
+          high = Math.min(high, apex.y - 12);
+          low = Math.max(low, apex.y + 12);
+        });
+      });
+    });
+    var pad = 6;
+    spots.forEach(function (spot) { spot.y += pad - high; });
+    var H = Math.round(low - high + pad * 2);
+
+    // Line weight is scaled against the biggest amount on any layer, so a
+    // thick arrow means the same thing on every tab.
+    var biggest = 1;
+    flowLayers(L).forEach(function (l) {
+      people.forEach(function (a) {
+        people.forEach(function (b) { biggest = Math.max(biggest, l.grid[a.key][b.key]); });
+      });
+    });
+
+    var edges = [];
+    people.forEach(function (a, i) {
+      people.forEach(function (b, j) {
+        var amount = grid[a.key][b.key];
+        if (i === j || amount <= 0) { return; }
+        var text = money.format(amount / 100);
+        edges.push({ from: i, to: j, amount: amount, text: text,
+                     A: spots[i], B: spots[j], bow: bowOf(spots[i], spots[j]),
+                     width: text.length * 7.3 + 10 });
+      });
+    });
+
+    // Each amount slides along its own arrow, or steps just beside it, until
+    // it finds a clear spot. Biggest amounts are placed first; any that still
+    // can't fit are left off, and hovering their arrow shows the amount.
+    function along(e, t) {
+      var u = 1 - t, C = { x: e.bow.cx, y: e.bow.cy };
+      return { x: u * u * e.A.x + 2 * u * t * C.x + t * t * e.B.x,
+               y: u * u * e.A.y + 2 * u * t * C.y + t * t * e.B.y };
+    }
+    function place(list) {
+      var taken = spots.map(function (spot) {
+        return { x1: spot.x - nodeR - 3, y1: spot.y - nodeR - 3, x2: spot.x + nodeR + 3, y2: spot.y + nodeR + 3 };
+      });
+      list.slice().sort(function (a, b) { return b.amount - a.amount; }).forEach(function (e) {
+        var spot = null;
+        // Along the arrow first, then just beside it on either side.
+        var steps = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
+        var tries = [];
+        [0, 16, -16].forEach(function (off) { steps.forEach(function (t) { tries.push([t, off]); }); });
+        tries.some(function (pick) {
+          var at = along(e, pick[0]);
+          if (pick[1]) {
+            var t = pick[0], C = { x: e.bow.cx, y: e.bow.cy };
+            var dx = 2 * (1 - t) * (C.x - e.A.x) + 2 * t * (e.B.x - C.x);
+            var dy = 2 * (1 - t) * (C.y - e.A.y) + 2 * t * (e.B.y - C.y);
+            var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+            at = { x: at.x - dy / dl * pick[1], y: at.y + dx / dl * pick[1] };
+          }
+          var box = { x1: at.x - e.width / 2 - 1, y1: at.y - 11, x2: at.x + e.width / 2 + 1, y2: at.y + 11 };
+          var hit = taken.some(function (o) {
+            return box.x1 < o.x2 && box.x2 > o.x1 && box.y1 < o.y2 && box.y2 > o.y1;
+          });
+          if (!hit) { spot = { at: at, box: box }; }
+          return !hit;
+        });
+        e.label = spot ? spot.at : null;
+        if (spot) { taken.push(spot.box); }
+      });
+    }
+    place(edges);
+
+    flowCanvas.textContent = '';
+    var root = sv('svg', {
+      viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'group',
+      'aria-label': 'Money flow, ' + layer.name + ': ' + payWord(layer.count)
+    }, flowCanvas);
+
+    var edgeLayer = sv('g', {}, root);
+    var labelLayer = sv('g', {}, root);
+    var nodeLayer = sv('g', {}, root);
+
+    edges.forEach(function (e) {
+      var A = e.A, B = e.B, Cx = e.bow.cx, Cy = e.bow.cy;
+      var sx = Cx - A.x, sy = Cy - A.y, sl = Math.sqrt(sx * sx + sy * sy);
+      var tx = B.x - Cx, ty = B.y - Cy, tl = Math.sqrt(tx * tx + ty * ty);
+      sx /= sl; sy /= sl; tx /= tl; ty /= tl;
+
+      var width = 1.5 + 4.5 * Math.sqrt(e.amount / biggest);
+      var head = 7 + width * 1.3;
+      var S = { x: A.x + sx * (nodeR + 3), y: A.y + sy * (nodeR + 3) };
+      var tip = { x: B.x - tx * (nodeR + 3), y: B.y - ty * (nodeR + 3) };
+      var stop = { x: tip.x - tx * head * 0.7, y: tip.y - ty * head * 0.7 };
+
+      var from = people[e.from], to = people[e.to];
+      var kind = 'edge c-' + colorOf(from.name);
+      var g = sv('g', { 'class': kind }, edgeLayer);
+      sv('title', {}, g).textContent = from.name + ' pays ' + to.name + ' ' + e.text;
+      sv('path', {
+        d: 'M' + S.x.toFixed(1) + ' ' + S.y.toFixed(1) + ' Q' + Cx.toFixed(1) + ' ' + Cy.toFixed(1) +
+           ' ' + stop.x.toFixed(1) + ' ' + stop.y.toFixed(1),
+        'stroke-width': width.toFixed(2)
+      }, g);
+      var bx = tip.x - tx * head, by = tip.y - ty * head, half = head * 0.55;
+      sv('polygon', {
+        points: [tip.x, tip.y, bx + ty * half, by - tx * half, bx - ty * half, by + tx * half]
+          .map(function (v) { return v.toFixed(1); }).join(' ')
+      }, g);
+
+      if (!e.label) { return; }
+      var tag = sv('g', { 'class': kind }, labelLayer);
+      var label = sv('g', { 'class': 'edge__label' }, tag);
+      sv('rect', { x: (e.label.x - e.width / 2).toFixed(1), y: (e.label.y - 10).toFixed(1),
+                   width: e.width.toFixed(1), height: 20, rx: 6 }, label);
+      sv('text', { x: e.label.x.toFixed(1), y: (e.label.y + 4).toFixed(1), 'text-anchor': 'middle' }, label)
+        .textContent = e.text;
+    });
+
+    people.forEach(function (p, i) {
+      var spot = spots[i];
+      var g = sv('g', {
+        'class': 'node c-' + colorOf(p.name), role: 'img',
+        'aria-label': p.name + ', net ' + signedMoney(net[i])
+      }, nodeLayer);
+      sv('title', {}, g).textContent = p.name;
+      sv('circle', { cx: spot.x.toFixed(1), cy: spot.y.toFixed(1), r: nodeR }, g);
+      sv('text', {
+        'class': 'initial', x: spot.x.toFixed(1), y: (spot.y + nodeR * 0.32).toFixed(1),
+        'text-anchor': 'middle', 'font-size': Math.round(nodeR * 0.85)
+      }, g).textContent = p.name.charAt(0).toUpperCase();
+
+      // Name and net sit outside the ring, pushed away from the centre.
+      var ox = Math.cos(spot.a), oy = Math.sin(spot.a);
+      var lx = spot.x + ox * (nodeR + 9), ly = spot.y + oy * (nodeR + 9);
+      var anchor = ox > 0.35 ? 'start' : ox < -0.35 ? 'end' : 'middle';
+      var top = oy < -0.35 ? ly - lineH * 2 : oy > 0.35 ? ly : ly - lineH;
+      sv('text', {
+        'class': 'name', x: lx.toFixed(1), y: (top + lineH - 4).toFixed(1),
+        'text-anchor': anchor, 'font-size': nameSize
+      }, g).textContent = short(p.name, nameMax);
+      sv('text', {
+        'class': 'net' + (net[i] > 0 ? ' in' : net[i] < 0 ? ' out' : ''),
+        x: lx.toFixed(1), y: (top + lineH * 2 - 4).toFixed(1),
+        'text-anchor': anchor, 'font-size': netSize
+      }, g).textContent = signedMoney(net[i]);
+    });
+  }
+
+  var drawPending = false;
+  window.addEventListener('resize', function () {
+    if (drawPending || flowPanel.hidden) { return; }
+    drawPending = true;
+    requestAnimationFrame(function () { drawPending = false; drawFlow(); });
+  });
+
+  flowTabs.addEventListener('click', function (event) {
+    var tab = event.target.closest ? event.target.closest('.tab') : null;
+    if (!tab) { return; }
+    flowState.layer = Number(tab.dataset.layer);
+    paintFlow();
+    flowTabs.querySelector('[aria-selected="true"]').focus();
+  });
+
+  flowTabs.addEventListener('keydown', function (event) {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') { return; }
+    event.preventDefault();
+    flowState.layer = (flowState.layer + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
+    paintFlow();
+    flowTabs.querySelector('[aria-selected="true"]').focus();
+  });
+
   function settle() {
     if (roster.length < 2) {
       return fail('There is nobody on the trip yet. Add at least two people first.');
@@ -1506,6 +2165,9 @@ footer {
     var result = minTransfers(standing);
     var payments = result.payments;
 
+    lastLayers = computeLayers(payments);
+    paintFlow();
+
     if (!payments.length) {
       return showEmpty('Everyone is square',
         'These amounts cancel each other out exactly, so nobody has to send anything.');
@@ -1514,12 +2176,7 @@ footer {
     lastPayments = payments;
     paintPayments();
 
-    var note = '';
-    if (payments.length !== result.floor) {
-      note = 'Two of these could merge only if a few people cancel out exactly, so give it a quick look.';
-    }
-    footnote.textContent = note;
-    footnote.hidden = !note;
+    footnote.hidden = true;
     copyWrap.hidden = false;
   }
 
@@ -1527,14 +2184,16 @@ footer {
 
   function parseBulk(text) {
     var out = [];
+    out.rejected = [];
     text.split(/\r?\n/).forEach(function (raw) {
       var line = raw.trim();
       if (!line || line.charAt(0) === '#') { return; }
+      var reject = function () { out.rejected.push(line); };
 
       var amountMatch = line.match(/([\d.,]*\d)\s*$/);
-      if (!amountMatch) { return; }
-      var cents = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
-      if (!isFinite(cents) || cents <= 0) { return; }
+      if (!amountMatch) { return reject(); }
+      var cents = toCents(parseFloat(amountMatch[1].replace(/,/g, '')));
+      if (!isFinite(cents) || cents <= 0) { return reject(); }
 
       var head = line.slice(0, amountMatch.index)
         .replace(/[$\u20AC\u00A3]/g, '')
@@ -1542,9 +2201,9 @@ footer {
         .replace(/,/g, '\t');
       var parts = head.split('\t').map(function (part) { return part.trim(); })
         .filter(function (part) { return part !== ''; });
-      if (parts.length < 2) { return; }
+      if (parts.length < 2) { return reject(); }
 
-      out.push({ paid: parts[0], owes: parts[1], cents: cents });
+      out.push({ paid: parts[0], owes: parts[1], cents: cents, raw: line });
     });
     return out;
   }
@@ -1621,9 +2280,10 @@ footer {
     var known = {};
     roster.forEach(function (person) { known[person.key] = true; });
 
+    var skipped = parsed.rejected.slice();
     parsed.forEach(function (line) {
       var payer = key(line.paid), ower = key(line.owes);
-      if (payer === ower || !known[payer] || !known[ower]) { return; }
+      if (payer === ower || !known[payer] || !known[ower]) { skipped.push(line.raw); return; }
       var pair = pairKey(payer, ower);
       // The same pair can appear on many purchases, so amounts stack up.
       var running = parseAmount(cells[pair]);
@@ -1636,6 +2296,14 @@ footer {
     error.hidden = true;
     rebuild();
     settle();
+
+    // A dropped line changes the totals, so never drop one quietly.
+    if (skipped.length) {
+      var shown = skipped.slice(0, 3).map(function (line) { return '\u201c' + line + '\u201d'; }).join(', ');
+      say(error, (skipped.length === 1 ? 'One line was' : skipped.length + ' lines were') +
+        ' left out, since every line needs two different names and an amount: ' + shown +
+        (skipped.length > 3 ? ', and ' + (skipped.length - 3) + ' more.' : '.'));
+    }
   });
 
   copyBtn.addEventListener('click', function () {
