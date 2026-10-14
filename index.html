@@ -53,9 +53,7 @@
 
   --owed:        #12A67B;
   --owed-tint:   #DFF3EC;
-  --owes:        #EE7F2B;
-  --owes-tint:   #FCEBDD;
-  --danger:      #D6203E;
+  --danger:      #C4554D;
   --danger-tint: #FBE7EA;
 
   --row-focus:   rgba(27, 135, 234, .06);
@@ -106,8 +104,6 @@
 
     --owed:        #35C79C;
     --owed-tint:   #1D3A33;
-    --owes:        #F5964F;
-    --owes-tint:   #3A2C1E;
     --danger:      #F0576F;
     --danger-tint: #3A222A;
 
@@ -624,62 +620,6 @@ button.btn:active { transform: translateY(1px); }
 }
 .paste .actions { margin-top: var(--gap-label); }
 
-/* ---- balances ---- */
-
-.beam-row {
-  display: grid;
-  grid-template-columns: minmax(66px, 96px) 1fr minmax(88px, auto);
-  align-items: center;
-  gap: 12px;
-  padding: 7px 10px;
-  margin: 0 -10px;
-}
-/* The number is the data and the name is the label, so the number wins. */
-.beam-name {
-  font-size: var(--size-meta);
-  font-weight: 500;
-  color: var(--ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.beam-track { position: relative; height: 24px; }
-.beam-track::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -3px;
-  bottom: -3px;
-  width: 1px;
-  background: var(--field-line);
-}
-.beam-fill {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  transition: width .38s cubic-bezier(.22,.9,.3,1);
-}
-.beam-fill.pos { left: 50%; background: var(--owed); border-radius: 0 5px 5px 0; }
-.beam-fill.neg { right: 50%; background: var(--owes); border-radius: 5px 0 0 5px; }
-.beam-val {
-  font-family: var(--mono);
-  font-weight: 700;
-  text-align: right;
-  color: var(--ink-faint);
-}
-.beam-val.pos { color: var(--owed); }
-.beam-val.neg { color: var(--owes); }
-.beam-legend {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 10px var(--gap-label);
-  margin: 0 -10px var(--gap-label);
-  font-size: var(--size-meta);
-  font-weight: 500;
-  color: var(--ink-soft);
-  border-bottom: 1px solid var(--rule);
-}
-
 /* ---- payments ---- */
 
 .transfer {
@@ -745,6 +685,9 @@ button.btn:active { transform: translateY(1px); }
 }
 .tab[aria-selected="true"] small { color: var(--blue); }
 
+/* The chart is clicked, not read like text, so double-clicking a name
+   shouldn't select it. */
+.flow { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .flow svg { display: block; width: 100%; height: auto; overflow: visible; }
 .flow .edge path { fill: none; stroke: var(--tone); stroke-linecap: round; }
 .flow .edge polygon { fill: var(--tone); }
@@ -757,12 +700,35 @@ button.btn:active { transform: translateY(1px); }
   font-weight: 700;
   fill: var(--ink);
 }
+.flow .edge__label text.in  { fill: var(--owed); }
+.flow .edge__label text.out { fill: var(--danger); }
+.flow .node { cursor: pointer; outline: none; }
 .flow .node circle { fill: var(--tint); stroke: var(--tone); stroke-width: 2; }
+.flow .node:focus-visible circle { stroke: var(--blue); stroke-width: 3; }
 .flow .node .initial { font-family: var(--sans); font-weight: 700; fill: var(--tone); }
 .flow .node .name { font-family: var(--sans); font-weight: 700; fill: var(--tone); }
 .flow .node .net { font-family: var(--mono); font-weight: 700; fill: var(--ink-faint); }
 .flow .node .net.in  { fill: var(--owed); }
 .flow .node .net.out { fill: var(--danger); }
+/* Busy layers hide amounts until someone is picked; arrow tooltips still work. */
+.flow svg:not(.all-labels) .edge__label { display: none; }
+.flow svg.has-focus .edge { opacity: .1; }
+.flow svg.has-focus .edge.is-on { opacity: 1; }
+.flow svg.has-focus .edge.is-on .edge__label { display: inline; }
+.flow svg.has-focus .node { opacity: .4; }
+.flow svg.has-focus .node.is-on { opacity: 1; }
+
+.flow__caption {
+  margin: 0 0 var(--gap-label);
+  text-align: center;
+  font-size: var(--size-meta);
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.flow__caption strong { color: var(--tone, var(--ink)); font-weight: 700; }
+.flow__caption .in  { color: var(--owed); font-weight: 700; }
+.flow__caption .out { color: var(--danger); font-weight: 700; }
+
 /* An empty panel names what is missing and what to do about it. */
 .empty { margin: 0; font-weight: 500; color: var(--ink-soft); }
 .empty strong { display: block; font-weight: 700; color: var(--ink); }
@@ -779,12 +745,11 @@ footer {
   .panel { border-radius: 28px; }
   .roster-add { grid-template-columns: minmax(0, 1fr); }
   .cell { grid-template-columns: minmax(0, 1fr) 120px; }
-  .beam-row { grid-template-columns: minmax(56px, 76px) 1fr minmax(80px, auto); gap: 10px; }
   h2 { align-items: flex-start; flex-direction: column; gap: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html, .beam-fill, button.btn, input, .cell { transition: none; }
+  html, button.btn, input, .cell { transition: none; }
 }
 </style>
 </head>
@@ -833,8 +798,8 @@ footer {
 
     <details class="paste">
       <summary>Paste a list instead</summary>
-      <p class="paste__hint">One debt per line: who paid, who owes them, then the amount. Names not on the trip yet get added, and repeated pairs are added together. Commas, tabs, &gt; and &#8594; all work as separators.</p>
-      <textarea id="bulk" spellcheck="false" aria-label="Paste debt lines" placeholder="Sam &gt; Bill = 24.50&#10;Sam &gt; Michael = 24.50&#10;Bill, Sam, 12&#10;Jeff&#9;Bill&#9;8.75"></textarea>
+      <p class="paste__hint">One debt per line: who paid, who owes them, then the amount.</p>
+      <textarea id="bulk" spellcheck="false" aria-label="Paste debt lines" placeholder="Sam &gt; Bill = 24.50&#10;Sam &#8594; Michael = 24.50&#10;Bill, Sam, 12&#10;Jeff&#9;Bill&#9;8.75"></textarea>
       <div class="actions">
         <button type="button" class="btn btn-quiet" id="bulk-add">Add these amounts</button>
       </div>
@@ -843,17 +808,10 @@ footer {
     <p class="notice" id="error" hidden></p>
   </section>
 
-  <section class="panel">
-    <h2>Balances</h2>
-    <div class="beam-legend"><span>Who</span><span>Is owed</span></div>
-    <div id="beam">
-      <p class="empty"><strong>No balances yet</strong>Fill in an amount above and each person's net position appears here as you type.</p>
-    </div>
-  </section>
-
   <section class="panel" id="flow" hidden>
     <h2>Money flow</h2>
     <div class="tabs" role="tablist" aria-label="Layer" id="flow-tabs"></div>
+    <p class="flow__caption" id="flow-caption" aria-live="polite"></p>
     <div class="flow" id="flow-canvas"></div>
   </section>
 
@@ -878,7 +836,6 @@ footer {
   var who = document.getElementById('who');
   var people = document.getElementById('people');
   var grid = document.getElementById('grid');
-  var beam = document.getElementById('beam');
   var face = document.getElementById('face');
   var status = document.getElementById('status');
   var count = document.getElementById('count');
@@ -891,7 +848,8 @@ footer {
   var flowPanel = document.getElementById('flow');
   var flowTabs = document.getElementById('flow-tabs');
   var flowCanvas = document.getElementById('flow-canvas');
-  var flowState = { layer: 0 };
+  var flowCaption = document.getElementById('flow-caption');
+  var flowState = { layer: 0, focus: -1 };   // focus: index into the snapshot's people
   var bulk = document.getElementById('bulk');
   var money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
 
@@ -1431,46 +1389,6 @@ footer {
       total.textContent = sum ? money.format(sum / 100) : '';
       total.classList.toggle('live', sum > 0);
     });
-
-    beam.textContent = '';
-    var standing = nets();
-    if (!lines.length || !standing.length) {
-      beam.appendChild(emptyBlock('No balances yet',
-        "Fill in an amount above and each person's net position appears here as you type."));
-      return;
-    }
-
-    var scale = 0;
-    standing.forEach(function (p) { scale = Math.max(scale, Math.abs(p.cents)); });
-    if (scale === 0) { scale = 1; }
-
-    standing.slice().sort(function (a, b) {
-      return b.cents - a.cents || a.name.localeCompare(b.name);
-    }).forEach(function (p) {
-      var row = document.createElement('div');
-      row.className = 'beam-row';
-
-      var name = document.createElement('span');
-      name.className = 'beam-name';
-      name.appendChild(dot(p.name));
-      name.appendChild(document.createTextNode(p.name));
-
-      var track = document.createElement('div');
-      track.className = 'beam-track';
-      var fill = document.createElement('div');
-      fill.className = 'beam-fill ' + (p.cents < 0 ? 'neg' : 'pos');
-      fill.style.width = (Math.abs(p.cents) / scale * 50) + '%';
-      track.appendChild(fill);
-
-      var val = document.createElement('span');
-      val.className = 'beam-val ' + (p.cents > 0 ? 'pos' : p.cents < 0 ? 'neg' : '');
-      val.textContent = money.format(p.cents / 100);
-
-      row.appendChild(name);
-      row.appendChild(track);
-      row.appendChild(val);
-      beam.appendChild(row);
-    });
   }
 
   function rebuild() {
@@ -1596,7 +1514,7 @@ footer {
     buildGrid();
     refresh();
     if (lastPayments.length) { paintPayments(); }
-    if (lastLayers) { paintFlow(); }
+    if (lastLayers) { paintWorking(); }
     return true;
   }
 
@@ -1707,7 +1625,7 @@ footer {
         // Only repaint a list that is actually on screen; an empty panel
         // is showing its own message.
         if (lastPayments.length) { paintPayments(); }
-        if (lastLayers) { paintFlow(); }
+        if (lastLayers) { paintWorking(); }
         var back = people.querySelector('.chip__name[data-person="' + person.key + '"]');
         if (back) { back.focus(); }
       });
@@ -1762,7 +1680,7 @@ footer {
   function fail(message) {
     say(error, message);
     lastLayers = null;
-    paintFlow();
+    paintWorking();
     showEmpty('Nothing to settle yet',
       'Fill in the amounts above, then press Settle up to see who sends money to who.');
   }
@@ -1826,23 +1744,41 @@ footer {
       one[from][to] += line.cents;
     });
 
-    // Layer 2 combines each pair's two directions into one amount.
+    // Layer 2 combines each pair's two directions into one amount. Pairs
+    // whose debts match exactly come to nothing; those are remembered by
+    // position so a rename relabels them too.
     var pairs = blankGrid(people);
     var pairCount = 0;
+    var evens = [];
     people.forEach(function (a, i) {
       people.forEach(function (b, j) {
         if (j <= i) { return; }
         var diff = one[a.key][b.key] - one[b.key][a.key];
         if (diff > 0) { pairs[a.key][b.key] = diff; pairCount++; }
         else if (diff < 0) { pairs[b.key][a.key] = -diff; pairCount++; }
+        else if (one[a.key][b.key]) { evens.push([i, j]); }
       });
     });
 
     var group = blankGrid(people);
     payments.forEach(function (pay) { group[key(pay.from)][key(pay.to)] += pay.amount; });
 
-    return { people: people, one: one, pairs: pairs, group: group,
+    return { people: people, one: one, pairs: pairs, group: group, evens: evens,
              oneCount: oneCount, pairCount: pairCount, groupCount: payments.length };
+  }
+
+  var fitPending = false;
+  window.addEventListener('resize', function () {
+    if (fitPending || flowPanel.hidden) { return; }
+    fitPending = true;
+    requestAnimationFrame(function () { fitPending = false; drawFlow(); });
+  });
+
+  function payWord(n) { return n + (n === 1 ? ' payment' : ' payments'); }
+
+  function paintWorking() {
+    if (!lastLayers) { flowPanel.hidden = true; return; }
+    paintFlow();
   }
 
   /* ---------- money flow ---------- */
@@ -1868,8 +1804,6 @@ footer {
     return name.length > max ? name.slice(0, max - 1) + '\u2026' : name;
   }
 
-  function payWord(n) { return n + (n === 1 ? ' payment' : ' payments'); }
-
   function signedMoney(cents) {
     return cents ? (cents > 0 ? '+' : '\u2212') + money.format(Math.abs(cents) / 100) : money.format(0);
   }
@@ -1887,6 +1821,7 @@ footer {
   function paintFlow() {
     if (!lastLayers) { flowPanel.hidden = true; return; }
     var layers = flowLayers(lastLayers);
+    if (flowState.focus >= lastLayers.people.length) { flowState.focus = -1; }
 
     flowTabs.textContent = '';
     layers.forEach(function (layer, i) {
@@ -1914,6 +1849,7 @@ footer {
     var people = L.people, n = people.length;
     var layer = flowLayers(L)[flowState.layer];
     var grid = layer.grid;
+    var focus = flowState.focus;
 
     var net = people.map(function (p) {
       var sum = 0;
@@ -1988,21 +1924,28 @@ footer {
       });
     });
 
+    var touching = {};
     var edges = [];
     people.forEach(function (a, i) {
       people.forEach(function (b, j) {
         var amount = grid[a.key][b.key];
         if (i === j || amount <= 0) { return; }
+        var on = focus >= 0 && (i === focus || j === focus);
+        if (on) { touching[i] = true; touching[j] = true; }
         var text = money.format(amount / 100);
-        edges.push({ from: i, to: j, amount: amount, text: text,
+        // With someone picked, their arrows read from their side:
+        // money coming to them is +green, money leaving them is -red.
+        var sign = on ? (j === focus ? 1 : -1) : 0;
+        var shown = sign ? signedMoney(sign * amount) : text;
+        edges.push({ from: i, to: j, amount: amount, on: on, text: text, shown: shown, sign: sign,
                      A: spots[i], B: spots[j], bow: bowOf(spots[i], spots[j]),
-                     width: text.length * 7.3 + 10 });
+                     width: shown.length * 7.3 + 10 });
       });
     });
 
-    // Each amount slides along its own arrow, or steps just beside it, until
-    // it finds a clear spot. Biggest amounts are placed first; any that still
-    // can't fit are left off, and hovering their arrow shows the amount.
+    // Each amount slides along its own arrow until it finds a clear spot.
+    // If a layer is too busy for every amount to sit cleanly, amounts show
+    // only for the person picked.
     function along(e, t) {
       var u = 1 - t, C = { x: e.bow.cx, y: e.bow.cy };
       return { x: u * u * e.A.x + 2 * u * t * C.x + t * t * e.B.x,
@@ -2012,6 +1955,7 @@ footer {
       var taken = spots.map(function (spot) {
         return { x1: spot.x - nodeR - 3, y1: spot.y - nodeR - 3, x2: spot.x + nodeR + 3, y2: spot.y + nodeR + 3 };
       });
+      var clean = true;
       list.slice().sort(function (a, b) { return b.amount - a.amount; }).forEach(function (e) {
         var spot = null;
         // Along the arrow first, then just beside it on either side.
@@ -2034,17 +1978,31 @@ footer {
           if (!hit) { spot = { at: at, box: box }; }
           return !hit;
         });
-        e.label = spot ? spot.at : null;
-        if (spot) { taken.push(spot.box); }
+        if (!spot) {
+          clean = false;
+          var mid = along(e, 0.5);
+          spot = { at: mid, box: { x1: mid.x - e.width / 2, y1: mid.y - 12, x2: mid.x + e.width / 2, y2: mid.y + 12 } };
+        }
+        e.label = spot.at;
+        taken.push(spot.box);
       });
+      return clean;
     }
-    place(edges);
+    var allLabels = edges.length <= 16 && place(edges);
+    if (!allLabels) {
+      edges.forEach(function (e) { e.label = null; });
+      place(edges.filter(function (e) { return e.on; }));
+    }
 
     flowCanvas.textContent = '';
     var root = sv('svg', {
       viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'group',
       'aria-label': 'Money flow, ' + layer.name + ': ' + payWord(layer.count)
     }, flowCanvas);
+    var cls = [];
+    if (allLabels) { cls.push('all-labels'); }
+    if (focus >= 0) { cls.push('has-focus'); }
+    root.setAttribute('class', cls.join(' '));
 
     var edgeLayer = sv('g', {}, root);
     var labelLayer = sv('g', {}, root);
@@ -2063,7 +2021,7 @@ footer {
       var stop = { x: tip.x - tx * head * 0.7, y: tip.y - ty * head * 0.7 };
 
       var from = people[e.from], to = people[e.to];
-      var kind = 'edge c-' + colorOf(from.name);
+      var kind = 'edge c-' + colorOf(from.name) + (e.on ? ' is-on' : '');
       var g = sv('g', { 'class': kind }, edgeLayer);
       sv('title', {}, g).textContent = from.name + ' pays ' + to.name + ' ' + e.text;
       sv('path', {
@@ -2082,14 +2040,18 @@ footer {
       var label = sv('g', { 'class': 'edge__label' }, tag);
       sv('rect', { x: (e.label.x - e.width / 2).toFixed(1), y: (e.label.y - 10).toFixed(1),
                    width: e.width.toFixed(1), height: 20, rx: 6 }, label);
-      sv('text', { x: e.label.x.toFixed(1), y: (e.label.y + 4).toFixed(1), 'text-anchor': 'middle' }, label)
-        .textContent = e.text;
+      sv('text', { x: e.label.x.toFixed(1), y: (e.label.y + 4).toFixed(1), 'text-anchor': 'middle',
+                   'class': e.sign > 0 ? 'in' : e.sign < 0 ? 'out' : '' }, label)
+        .textContent = e.shown;
     });
 
     people.forEach(function (p, i) {
       var spot = spots[i];
+      var on = focus === i || !!touching[i];
       var g = sv('g', {
-        'class': 'node c-' + colorOf(p.name), role: 'img',
+        'class': 'node c-' + colorOf(p.name) + (on ? ' is-on' : ''),
+        tabindex: 0, role: 'button', 'data-index': i,
+        'aria-pressed': focus === i ? 'true' : 'false',
         'aria-label': p.name + ', net ' + signedMoney(net[i])
       }, nodeLayer);
       sv('title', {}, g).textContent = p.name;
@@ -2114,14 +2076,35 @@ footer {
         'text-anchor': anchor, 'font-size': netSize
       }, g).textContent = signedMoney(net[i]);
     });
-  }
 
-  var drawPending = false;
-  window.addEventListener('resize', function () {
-    if (drawPending || flowPanel.hidden) { return; }
-    drawPending = true;
-    requestAnimationFrame(function () { drawPending = false; drawFlow(); });
-  });
+    // The caption does the arithmetic for whoever is picked.
+    flowCaption.textContent = '';
+    if (focus < 0) {
+      flowCaption.textContent = allLabels
+        ? 'Tap a person to follow their money.'
+        : 'Tap a person to see their amounts.';
+      return;
+    }
+    var person = people[focus], gets = 0, gives = 0;
+    people.forEach(function (q) { gets += grid[q.key][person.key]; gives += grid[person.key][q.key]; });
+    function amount(cents) {
+      var span = document.createElement('span');
+      span.className = cents > 0 ? 'in' : cents < 0 ? 'out' : '';
+      span.textContent = signedMoney(cents);
+      return span;
+    }
+    var who = document.createElement('strong');
+    who.className = 'c-' + colorOf(person.name);
+    who.textContent = person.name;
+    flowCaption.appendChild(who);
+    flowCaption.appendChild(document.createTextNode(' receives '));
+    flowCaption.appendChild(amount(gets));
+    flowCaption.appendChild(document.createTextNode(' and sends '));
+    flowCaption.appendChild(amount(-gives));
+    flowCaption.appendChild(document.createTextNode(', for a net of '));
+    flowCaption.appendChild(amount(gets - gives));
+    flowCaption.appendChild(document.createTextNode('.'));
+  }
 
   flowTabs.addEventListener('click', function (event) {
     var tab = event.target.closest ? event.target.closest('.tab') : null;
@@ -2137,6 +2120,27 @@ footer {
     flowState.layer = (flowState.layer + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
     paintFlow();
     flowTabs.querySelector('[aria-selected="true"]').focus();
+  });
+
+  function pickNode(target) {
+    var node = target.closest ? target.closest('.node') : null;
+    var index = node ? Number(node.getAttribute('data-index')) : -1;
+    flowState.focus = index === flowState.focus ? -1 : index;
+    drawFlow();
+    if (index >= 0) {
+      var again = flowCanvas.querySelector('.node[data-index="' + index + '"]');
+      if (again) { again.focus(); }
+    }
+  }
+
+  // Tapping a person isolates their arrows; tapping them again, or empty
+  // space, brings everyone back.
+  flowCanvas.addEventListener('click', function (event) { pickNode(event.target); });
+  flowCanvas.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') { return; }
+    if (!event.target.closest || !event.target.closest('.node')) { return; }
+    event.preventDefault();
+    pickNode(event.target);
   });
 
   function settle() {
@@ -2166,7 +2170,8 @@ footer {
     var payments = result.payments;
 
     lastLayers = computeLayers(payments);
-    paintFlow();
+    flowState.focus = -1;
+    paintWorking();
 
     if (!payments.length) {
       return showEmpty('Everyone is square',
