@@ -295,6 +295,9 @@ input:focus {
   font-weight: 700;
   text-align: right;
 }
+/* A filled box being edited shows its current amount as grey placeholder
+   text, in the same weight, so the first keystroke replaces it. */
+.money input.held::placeholder { font-weight: 700; }
 
 .note {
   margin: 4px 0 0;
@@ -346,6 +349,7 @@ input:focus {
   font: inherit;
   color: inherit;
   cursor: pointer;
+  transition: background-color 160ms ease;
 }
 .chip__name:hover,
 .chip__name[aria-expanded="true"] { background: rgba(126, 140, 158, .22); }
@@ -363,6 +367,21 @@ input:focus {
   cursor: pointer;
 }
 .chip__drop:hover { background: var(--card); color: var(--danger); }
+
+/* Dragging a chip to reorder. The lifted chip follows the pointer from
+   script; the others slide out of its way. */
+.chip {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition: scale 160ms ease, box-shadow 160ms ease;
+}
+.chip.dragging { z-index: 5; will-change: transform; }
+.chip.lifted { scale: 1.06; box-shadow: var(--shadow-pop); }
+/* The hover highlight fades away while the chip is held. */
+.chip.lifted .chip__name { background-color: transparent; }
+html.chip-dragging, html.chip-dragging * { cursor: grabbing !important; }
 
 /* ---- one colour per person ----
    Each class hands down a fill and a text tone, so a chip, a dot and a
@@ -417,6 +436,19 @@ input:focus {
   border-radius: 18px;
   background: var(--card);
   box-shadow: var(--shadow-pop), 0 0 0 1px var(--rule);
+  /* Same fade, rise and scale as the reader's Subscriptions sheet. */
+  opacity: 1;
+  transform: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+@starting-style {
+  .menu { opacity: 0; transform: translateY(10px) scale(0.985); }
+}
+/* Added from JS so the close always plays. Must follow .menu. */
+.menu.closing {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  pointer-events: none;
 }
 .menu__label {
   margin: 6px 10px 6px;
@@ -501,7 +533,8 @@ input:focus {
   justify-content: space-between;
   gap: 12px;
   margin: 0 0 var(--gap-label);
-  padding: 0 10px var(--gap-label);
+  /* No left inset, so the payer's name lines up with the names below. */
+  padding: 0 10px var(--gap-label) 0;
   border-bottom: 1px solid var(--rule);
   font-size: var(--size-body);
   font-weight: 700;
@@ -526,7 +559,17 @@ input:focus {
 }
 /* Show which pair is being edited, not just which box. */
 .cell:focus-within { background: var(--row-focus); }
-.cell__name { font-weight: 600; }
+.cell__name { font-weight: 600; min-width: 0; }
+/* Names in the grid are written in the same text colour as their chip. */
+.tone {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--tone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
 .cell .note { grid-column: 1 / -1; }
 
 .actions {
@@ -768,7 +811,7 @@ footer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html, button.btn, input, .cell { transition: none; }
+  html, button.btn, input, .cell, .menu, .chip, .chip__name { transition: none; }
 }
 </style>
 </head>
@@ -922,6 +965,14 @@ footer {
     mark.className = 'dot c-' + colorOf(name);
     mark.setAttribute('aria-hidden', 'true');
     return mark;
+  }
+
+  // A person's name in their own text colour, the same as their chip.
+  function toned(name) {
+    var tag = document.createElement('span');
+    tag.className = 'tone c-' + colorOf(name);
+    tag.textContent = name;
+    return tag;
   }
 
   // Roll a list of {paid, owes, cents} debts into one net position per person.
@@ -1250,8 +1301,7 @@ footer {
 
     var name = document.createElement('span');
     name.className = 'cell__name';
-    name.appendChild(dot(ower.name));
-    name.appendChild(document.createTextNode(ower.name));
+    name.appendChild(toned(ower.name));
 
     var wrap = document.createElement('div');
     wrap.className = 'money';
@@ -1300,8 +1350,8 @@ footer {
       var head = document.createElement('h3');
       head.className = 'group__head';
       var label = document.createElement('span');
-      label.appendChild(dot(payer.name));
-      label.appendChild(document.createTextNode(payer.name + ' paid for'));
+      label.appendChild(toned(payer.name));
+      label.appendChild(document.createTextNode(' paid for'));
       var total = document.createElement('span');
       total.className = 'group__total';
       head.appendChild(label);
@@ -1419,6 +1469,18 @@ footer {
   /* ---------- the colour menu ---------- */
 
   var openPicker = null;
+  var MENU_FADE = 200;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // The menu stops counting as open straight away, so a new one can open
+  // while the old one is still fading; it's removed once the fade ends.
+  function fadeOutMenu(el) {
+    if (reduceMotion) { if (el.parentNode) { el.parentNode.removeChild(el); } return; }
+    el.classList.add('closing');
+    setTimeout(function () {
+      if (el.parentNode) { el.parentNode.removeChild(el); }
+    }, MENU_FADE);
+  }
 
   // Closing is saving: clicking away, Enter, picking a colour or opening
   // another chip all keep a new name. Only Escape throws it away.
@@ -1426,7 +1488,7 @@ footer {
     if (!openPicker) { return; }
     var anchor = openPicker.anchor;
     var commit = discard ? null : openPicker.commit;
-    openPicker.el.parentNode.removeChild(openPicker.el);
+    fadeOutMenu(openPicker.el);
     openPicker = null;
     document.removeEventListener('mousedown', outsidePicker, true);
     window.removeEventListener('resize', windowClosePicker);
@@ -2802,6 +2864,282 @@ footer {
     if (person) { openColorPicker(person, pick); }
   });
 
+  /* ---------- reordering chips ----------
+     Press and drag a chip to move it. The lifted chip follows the pointer;
+     the others slide out of its way. On touch, hold briefly first so a
+     swipe across the row still scrolls the page. Shift + Left/Right moves
+     a focused chip from the keyboard. */
+
+  var SLIDE = 220;
+  var SLIDE_EASE = 'cubic-bezier(.2, .8, .3, 1)';
+  var HOLD = 260;          // touch press-and-hold before a drag starts
+  var drag = null;
+  var swallowUntil = 0;    // a drag ends in a click; don't let it open the menu
+
+  function chipList() {
+    return Array.prototype.slice.call(people.querySelectorAll('.chip'));
+  }
+
+  function stopAnims(chip) {
+    chip.getAnimations().forEach(function (anim) { anim.cancel(); });
+  }
+
+  // Where the layout puts a chip, ignoring the drag offset on it.
+  function layoutRect(chip) {
+    var was = chip.style.transform;
+    chip.style.transform = 'none';
+    var rect = chip.getBoundingClientRect();
+    chip.style.transform = was;
+    return rect;
+  }
+
+  // Slide each chip (bar `skip`) from where it was on screen to where the
+  // layout now puts it. Returns the new layout rects.
+  function slideFrom(before, skip) {
+    var after = new Map();
+    chipList().forEach(function (chip) {
+      if (chip === skip) { return; }
+      stopAnims(chip);
+      var now = chip.getBoundingClientRect();
+      after.set(chip, now);
+      var was = before.get(chip);
+      if (!was || reduceMotion) { return; }
+      var dx = was.left - now.left, dy = was.top - now.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) { return; }
+      chip.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }],
+                   { duration: SLIDE, easing: SLIDE_EASE });
+    });
+    return after;
+  }
+
+  function screenRects(skip) {
+    var map = new Map();
+    chipList().forEach(function (chip) {
+      if (chip !== skip) { map.set(chip, chip.getBoundingClientRect()); }
+    });
+    return map;
+  }
+
+  // Roster follows whatever order the chips are now in.
+  function commitOrder() {
+    var order = chipList().map(function (chip) {
+      return chip.querySelector('.chip__name').dataset.person;
+    });
+    var same = order.length === roster.length &&
+      order.every(function (k, i) { return roster[i].key === k; });
+    if (same) { return; }
+    var byKey = {};
+    roster.forEach(function (person) { byKey[person.key] = person; });
+    roster = order.map(function (k) { return byKey[k]; }).filter(Boolean);
+    buildGrid();
+    refresh();
+  }
+
+  function follow() {
+    var r = drag.rect;
+    var dx = drag.x - drag.gx - r.left, dy = drag.y - drag.gy - r.top;
+    drag.chip.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }
+
+  // Slot for the lifted chip, judged by its centre: chips on an earlier row,
+  // or left of it on the same row, count as before it.
+  function targetIndex() {
+    var r = drag.rect;
+    var cx = drag.x - drag.gx + r.width / 2, cy = drag.y - drag.gy + r.height / 2;
+    var at = 0;
+    drag.others.forEach(function (o) {
+      if (cy > o.bottom) { at++; }
+      else if (cy >= o.top && cx > o.left + o.width / 2) { at++; }
+    });
+    return at;
+  }
+
+  function moveTo(at) {
+    var chip = drag.chip;
+    var before = screenRects(chip);
+    var rest = chipList().filter(function (c) { return c !== chip; });
+    people.insertBefore(chip, rest[at] || null);
+    drag.index = at;
+    drag.others = slideFrom(before, chip);
+    drag.rect = layoutRect(chip);
+    follow();
+  }
+
+  function startDrag() {
+    var chip = drag.chip;
+    clearTimeout(drag.timer);
+    closePicker(false);
+    chipList().forEach(function (c) {
+      c.getAnimations().forEach(function (anim) { anim.finish(); });
+    });
+    drag.live = true;
+    chip.style.transform = '';
+    drag.rect = chip.getBoundingClientRect();
+    drag.gx = drag.x0 - drag.rect.left;
+    drag.gy = drag.y0 - drag.rect.top;
+    drag.index = chipList().indexOf(chip);
+    drag.others = screenRects(chip);
+    chip.classList.add('dragging', 'lifted');
+    document.documentElement.classList.add('chip-dragging');
+    window.addEventListener('scroll', remeasure, true);
+  }
+
+  // Scrolling mid-drag moves everything on screen; measure again.
+  function remeasure() {
+    if (!drag || !drag.live) { return; }
+    drag.rect = layoutRect(drag.chip);
+    drag.others = screenRects(drag.chip);
+    follow();
+  }
+
+  function onDragMove(event) {
+    if (!drag || event.pointerId !== drag.id) { return; }
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    if (!drag.live) {
+      var moved = Math.hypot(drag.x - drag.x0, drag.y - drag.y0);
+      if (drag.touch) {
+        if (moved > 10) { endPress(); }   // a swipe, not a hold: let it scroll
+        return;
+      }
+      if (moved < 5) { return; }
+      startDrag();
+    }
+    follow();
+    var at = targetIndex();
+    if (at !== drag.index) { moveTo(at); }
+  }
+
+  function endPress() {
+    if (!drag) { return; }
+    clearTimeout(drag.timer);
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    document.removeEventListener('pointercancel', onDragEnd);
+    window.removeEventListener('scroll', remeasure, true);
+    drag = null;
+  }
+
+  function onDragEnd(event) {
+    if (!drag || event.pointerId !== drag.id) { return; }
+    var d = drag;
+    endPress();
+    if (!d.live) { return; }
+
+    swallowUntil = Date.now() + 400;
+    var chip = d.chip;
+    var from = chip.style.transform;
+    chip.style.transform = '';
+    chip.classList.remove('lifted');
+    document.documentElement.classList.remove('chip-dragging');
+
+    // Glide into its slot, then put it back down.
+    if (!reduceMotion && from) {
+      var anim = chip.animate([{ transform: from }, { transform: 'none' }],
+                              { duration: SLIDE, easing: SLIDE_EASE });
+      anim.onfinish = anim.oncancel = function () { chip.classList.remove('dragging'); };
+    } else {
+      chip.classList.remove('dragging');
+    }
+    commitOrder();
+  }
+
+  people.addEventListener('pointerdown', function (event) {
+    if (drag || !event.isPrimary || event.button !== 0 || !event.target.closest) { return; }
+    var chip = event.target.closest('.chip');
+    if (!chip || event.target.closest('.chip__drop')) { return; }
+    drag = { chip: chip, id: event.pointerId, live: false, timer: null,
+             touch: event.pointerType !== 'mouse',
+             x0: event.clientX, y0: event.clientY, x: event.clientX, y: event.clientY };
+    if (drag.touch) {
+      drag.timer = setTimeout(function () {
+        if (!drag || drag.live) { return; }
+        drag.x0 = drag.x; drag.y0 = drag.y;
+        startDrag();
+        follow();
+      }, HOLD);
+    }
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', onDragEnd);
+    document.addEventListener('pointercancel', onDragEnd);
+  });
+
+  // Once a touch drag is live, keep the page from scrolling under it.
+  people.addEventListener('touchmove', function (event) {
+    if (drag && drag.live) { event.preventDefault(); }
+  }, { passive: false });
+
+  people.addEventListener('contextmenu', function (event) {
+    if (drag) { event.preventDefault(); }
+  });
+
+  // Runs before the chip's own click handler.
+  people.addEventListener('click', function (event) {
+    if (Date.now() < swallowUntil) {
+      swallowUntil = 0;
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  }, true);
+
+  people.addEventListener('keydown', function (event) {
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) { return; }
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') { return; }
+    var pick = event.target.closest ? event.target.closest('.chip__name') : null;
+    if (!pick || drag) { return; }
+    event.preventDefault();
+    var list = chipList(), chip = pick.closest('.chip'), at = list.indexOf(chip);
+    var to = at + (event.key === 'ArrowLeft' ? -1 : 1);
+    if (to < 0 || to >= list.length) { return; }
+    closePicker(false);
+    var before = screenRects(null);
+    people.insertBefore(chip, to < at ? list[to] : list[to].nextSibling);
+    slideFrom(before, null);
+    pick.focus({ preventScroll: true });
+    commitOrder();
+  });
+
+  /* ---------- typing over an amount ----------
+     Like renaming a person: focusing a filled box clears it and shows the
+     current amount as grey placeholder text, so you can type a new one
+     straight in. Leave it empty and the old amount comes back. Backspace
+     or Delete on the empty box clears the amount for good. */
+
+  var BLANK = '0.00';
+
+  function holdAmount(field) {
+    if (field.classList.contains('held') || !field.value.trim()) { return; }
+    field.dataset.was = field.value;
+    field.placeholder = field.value.trim();
+    field.classList.add('held');
+    field.value = '';
+  }
+
+  function letGo(field) {
+    delete field.dataset.was;
+    field.placeholder = BLANK;
+    field.classList.remove('held');
+  }
+
+  // Focus is leaving: keep what was typed, or bring the old amount back.
+  function restoreAmount(field) {
+    if (!field.classList.contains('held')) { return; }
+    var was = field.dataset.was;
+    letGo(field);
+    if (field.value.trim()) { return; }
+    field.value = was;
+    if (cells[field.dataset.pair] !== was) {
+      cells[field.dataset.pair] = was;
+      refresh();
+    }
+  }
+
+  grid.addEventListener('focusin', function (event) {
+    if (event.target.classList && event.target.classList.contains('amount')) {
+      holdAmount(event.target);
+    }
+  });
+
   // Stay quiet while a box is being typed in; check it once focus leaves.
   grid.addEventListener('input', function (event) {
     var field = event.target;
@@ -2813,15 +3151,44 @@ footer {
   });
 
   grid.addEventListener('focusout', function (event) {
+    if (event.target.classList && event.target.classList.contains('amount')) {
+      restoreAmount(event.target);
+    }
     var row = event.target.closest ? event.target.closest('.cell') : null;
     if (!row || row.contains(event.relatedTarget)) { return; }
     checkCell(row, true);
   });
 
   grid.addEventListener('keydown', function (event) {
+    var field = event.target;
+    var isAmount = field.classList && field.classList.contains('amount');
+
+    if (isAmount && (event.key === 'Backspace' || event.key === 'Delete') &&
+        field.classList.contains('held') && field.value === '') {
+      // Nothing typed yet, so this means "clear the amount".
+      event.preventDefault();
+      letGo(field);
+      cells[field.dataset.pair] = '';
+      noteCell(field.closest('.cell'), null, false);
+      refresh();
+      return;
+    }
+
+    if (isAmount && event.key === 'Escape' && field.classList.contains('held')) {
+      // Throw away what was typed and show the old amount in grey again.
+      field.value = '';
+      cells[field.dataset.pair] = field.dataset.was;
+      checkCell(field.closest('.cell'), false);
+      refresh();
+      return;
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault();
+      // Settle with the old amount if nothing new was typed.
+      if (isAmount) { restoreAmount(field); }
       settle();
+      if (isAmount && document.activeElement === field) { holdAmount(field); }
     }
   });
 
