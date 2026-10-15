@@ -760,6 +760,11 @@ button.btn:active { transform: translateY(1px); }
 
 .flow__caption {
   margin: 0 0 var(--gap-label);
+  /* Room for two lines from the start, with a shorter caption centred in
+     it; script grows this if a caption ever needs more. Keeps the chart
+     below from jumping as the caption changes. */
+  min-height: 3.2em;
+  align-content: center;
   text-align: center;
   font-size: var(--size-meta);
   font-weight: 500;
@@ -805,6 +810,8 @@ footer {
   .roster-add { grid-template-columns: minmax(0, 1fr); }
   .cell { grid-template-columns: minmax(0, 1fr) 120px; }
   h2 { align-items: flex-start; flex-direction: column; gap: 18px; }
+  /* Narrow screens wrap long captions to three lines; leave room for them. */
+  .flow__caption { min-height: 4.8em; }
 }
 </style>
 </head>
@@ -1892,6 +1899,28 @@ footer {
     var cx = (A.x + B.x) / 2 + px * bend * 2, cy = (A.y + B.y) / 2 + py * bend * 2;
     return { cx: cx, cy: cy, apex: { x: (A.x + 2 * cx + B.x) / 4, y: (A.y + 2 * cy + B.y) / 4 } };
   }
+
+  /* The caption changes length as options switch and transitions narrate.
+     Its box only ever grows to fit the tallest caption shown so far, so the
+     chart under it stays still. Starts over when the results or the width
+     change. */
+  var captionFloor = { layers: null, width: 0, height: 0 };
+
+  function holdCaptionHeight() {
+    var width = flowCaption.clientWidth;
+    if (!width) { return; }   // panel hidden
+    if (lastLayers !== captionFloor.layers || width !== captionFloor.width) {
+      captionFloor = { layers: lastLayers, width: width, height: 0 };
+    }
+    flowCaption.style.minHeight = '';
+    var height = flowCaption.offsetHeight;
+    captionFloor.height = Math.max(captionFloor.height, height);
+    flowCaption.style.minHeight = captionFloor.height + 'px';
+  }
+
+  new MutationObserver(holdCaptionHeight)
+    .observe(flowCaption, { childList: true, characterData: true, subtree: true });
+  window.addEventListener('resize', holdCaptionHeight);
 
   function paintTabs() {
     flowTabs.textContent = '';
